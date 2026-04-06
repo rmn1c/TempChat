@@ -21,110 +21,176 @@ public sealed class LoginPanel : Panel
     public LoginPanel(string defaultHost, string defaultPort, JoinCallback callback)
     {
         _callback = callback;
-        Padding   = new Padding(30, 20, 30, 20);
+        BackColor = Theme.Background;
+        Padding   = new Padding(0);
 
-        var layout = new TableLayoutPanel
+        // ── Centered container ────────────────────────────────────
+        var center = new Panel
         {
-            Dock        = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount    = 11,
-            AutoSize    = true
+            Width     = 380,
+            BackColor = Theme.Surface,
+            Padding   = new Padding(32, 28, 32, 28)
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,  100));
+        center.Paint += PaintRoundedPanel;
 
-        // Title
+        // ── Title ─────────────────────────────────────────────────
         var title = new Label
         {
             Text      = "TempChat",
-            Font      = new Font("Segoe UI", 22, FontStyle.Bold),
-            Dock      = DockStyle.Fill,
+            Font      = Theme.TitleFont,
+            ForeColor = Theme.Accent,
+            Dock      = DockStyle.Top,
+            Height    = 52,
             TextAlign = ContentAlignment.MiddleCenter
         };
-        layout.Controls.Add(title, 0, 0);
-        layout.SetColumnSpan(title, 2);
 
-        _hostField         = new TextBox { Text = defaultHost,  Dock = DockStyle.Fill };
-        _portField         = new TextBox { Text = defaultPort,  Dock = DockStyle.Fill };
-        _usernameField     = new TextBox { Dock = DockStyle.Fill };
-        _roomPasswordField = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
-        _roomCodeField     = new TextBox { Dock = DockStyle.Fill };
-        _newRoomNameField  = new TextBox { Dock = DockStyle.Fill };
-
-        AddRow(layout, 1, "Server IP:",     _hostField);
-        AddRow(layout, 2, "Port:",          _portField);
-        AddRow(layout, 3, "Username:",      _usernameField);
-        AddRow(layout, 4, "Room Password:", _roomPasswordField);
-
-        var sep = new Label
+        var sub = new Label
         {
-            BorderStyle = BorderStyle.Fixed3D,
-            Height      = 2,
-            Dock        = DockStyle.Fill,
-            Margin      = new Padding(0, 8, 0, 8)
+            Text      = "Private · Encrypted · Ephemeral",
+            Font      = Theme.SubFont,
+            ForeColor = Theme.SubText,
+            Dock      = DockStyle.Top,
+            Height    = 22,
+            TextAlign = ContentAlignment.TopCenter
         };
-        layout.Controls.Add(sep, 0, 5);
-        layout.SetColumnSpan(sep, 2);
 
-        AddRow(layout, 6, "Room Code:",     _roomCodeField);
-        AddRow(layout, 7, "New Room Name:", _newRoomNameField);
+        // ── Fields ────────────────────────────────────────────────
+        _hostField         = Theme.MakeTextBox();
+        _hostField.Text    = defaultHost;
+        _hostField.ForeColor = Theme.Text;
 
-        var hint = new Label
-        {
-            Text      = "Room Password is used for end-to-end encryption.\nAll members must use the same password.",
-            ForeColor = Color.Gray,
-            Font      = new Font("Segoe UI", 8.5f, FontStyle.Italic),
-            Dock      = DockStyle.Fill,
-            AutoSize  = false,
-            Height    = 36
-        };
-        layout.Controls.Add(hint, 0, 8);
-        layout.SetColumnSpan(hint, 2);
+        _portField         = Theme.MakeTextBox();
+        _portField.Text    = defaultPort;
+        _portField.ForeColor = Theme.Text;
 
-        _joinBtn   = new Button { Text = "Join Room",   Dock = DockStyle.Fill, Height = 32 };
-        _createBtn = new Button { Text = "Create Room", Dock = DockStyle.Fill, Height = 32 };
+        _usernameField     = Theme.MakeTextBox("Username");
+        _roomPasswordField = Theme.MakeTextBox("Room password (for encryption)", password: true);
+        _roomCodeField     = Theme.MakeTextBox("Room code");
+        _newRoomNameField  = Theme.MakeTextBox("New room name");
+
+        // Host + Port on same row
+        var serverRow = new Panel { Dock = DockStyle.Top, Height = 38, Margin = new Padding(0, 0, 0, 6) };
+        var hostWrap  = new Panel { Dock = DockStyle.Fill, BackColor = Theme.InputBg, Padding = new Padding(10, 7, 6, 7) };
+        var portWrap  = new Panel { Dock = DockStyle.Right, Width = 80, BackColor = Theme.InputBg, Padding = new Padding(6, 7, 10, 7) };
+        _hostField.Dock = DockStyle.Fill;
+        _portField.Dock = DockStyle.Fill;
+        hostWrap.Controls.Add(_hostField);
+        portWrap.Controls.Add(_portField);
+        serverRow.Controls.Add(hostWrap);
+        serverRow.Controls.Add(portWrap);
+
+        _joinBtn   = Theme.MakeButton("Join Room");
+        _createBtn = Theme.MakeButton("Create Room", primary: false);
+
         _statusLabel = new Label
         {
             Text      = " ",
-            ForeColor = Color.Red,
-            Dock      = DockStyle.Fill,
+            ForeColor = Color.FromArgb(220, 80, 80),
+            Font      = Theme.SubFont,
+            Dock      = DockStyle.Top,
+            Height    = 22,
             TextAlign = ContentAlignment.MiddleCenter
         };
 
-        layout.Controls.Add(_joinBtn,     0, 9);
-        layout.SetColumnSpan(_joinBtn, 2);
-        layout.Controls.Add(_createBtn,   0, 10);
-        layout.SetColumnSpan(_createBtn, 2);
-
-        var statusRow = new Label
+        // Separator label
+        var sepLabel = new Label
         {
-            Text      = " ",
-            ForeColor = Color.Red,
-            Dock      = DockStyle.Fill,
+            Text      = "──────────── or ────────────",
+            ForeColor = Theme.SubText,
+            Font      = Theme.SubFont,
+            Dock      = DockStyle.Top,
+            Height    = 24,
             TextAlign = ContentAlignment.MiddleCenter
         };
-        _statusLabel = statusRow;
-        layout.RowCount = 12;
-        layout.Controls.Add(_statusLabel, 0, 11);
-        layout.SetColumnSpan(_statusLabel, 2);
 
-        Controls.Add(layout);
+        var hint = new Label
+        {
+            Text      = "🔒  Room Password is used for end-to-end encryption",
+            Font      = new Font("Segoe UI", 8.5f, FontStyle.Italic),
+            ForeColor = Theme.SubText,
+            Dock      = DockStyle.Top,
+            Height    = 20,
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+
+        // Build form top-to-bottom (added in reverse because Dock=Top stacks)
+        var form = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Surface };
+        var controls = new Control[]
+        {
+            _statusLabel,
+            Spacer(6),
+            _createBtn,
+            Spacer(4),
+            _joinBtn,
+            Spacer(6),
+            Wrap(_newRoomNameField),
+            Wrap(_roomCodeField),
+            sepLabel,
+            Wrap(_roomPasswordField),
+            hint,
+            Spacer(4),
+            Wrap(_usernameField),
+            Spacer(4),
+            serverRow,
+            Wrap(sub),
+            Wrap(title),
+            Spacer(4),
+        };
+        foreach (var c in controls) { c.Dock = DockStyle.Top; form.Controls.Add(c); }
+        form.Controls.SetChildIndex(controls[^1], 0); // title first visually
+
+        center.Controls.Add(form);
+
+        // Center the panel inside this panel
+        Resize += (_, _) => PositionCenter(center);
+        Controls.Add(center);
+        PositionCenter(center);
 
         _joinBtn.Click   += async (_, _) => await HandleJoinAsync();
         _createBtn.Click += async (_, _) => await HandleCreateAsync();
     }
 
-    private static void AddRow(TableLayoutPanel layout, int row, string labelText, Control field)
+    private void PositionCenter(Panel center)
     {
-        layout.Controls.Add(new Label
-        {
-            Text      = labelText,
-            Dock      = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleRight,
-            Padding   = new Padding(0, 0, 6, 0)
-        }, 0, row);
-        layout.Controls.Add(field, 1, row);
+        center.Height = Height - 60;
+        center.Left   = (Width  - center.Width)  / 2;
+        center.Top    = (Height - center.Height) / 2;
     }
+
+    private static void PaintRoundedPanel(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Panel p) return;
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        var r = new Rectangle(0, 0, p.Width - 1, p.Height - 1);
+        using var path = RoundRect(r, 16);
+        using var fill = new SolidBrush(Theme.Surface);
+        e.Graphics.FillPath(fill, path);
+        using var pen = new Pen(Theme.Border, 1);
+        e.Graphics.DrawPath(pen, path);
+    }
+
+    private static Panel Wrap(Control c)
+    {
+        var w = new Panel { Height = c is Label l ? l.Height : 38, BackColor = Color.Transparent };
+        c.Dock = DockStyle.Fill;
+        w.Controls.Add(c);
+        return w;
+    }
+
+    private static Panel Wrap(TextBox tb)
+    {
+        var w = new Panel
+        {
+            Height    = 38,
+            BackColor = Theme.InputBg,
+            Padding   = new Padding(10, 7, 10, 7)
+        };
+        tb.Dock = DockStyle.Fill;
+        w.Controls.Add(tb);
+        return w;
+    }
+
+    private static Panel Spacer(int h) => new() { Height = h, BackColor = Color.Transparent };
 
     private async Task HandleJoinAsync()
     {
@@ -132,24 +198,22 @@ public sealed class LoginPanel : Panel
         string port     = _portField.Text.Trim();
         string username = _usernameField.Text.Trim();
         string code     = _roomCodeField.Text.Trim().ToUpper();
+        string password = _roomPasswordField.Text;
 
         if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(port)) { SetStatus("Server IP and port are required."); return; }
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(code)) { SetStatus("Username and room code are required."); return; }
+        if (string.IsNullOrEmpty(username) || username == (string?)_usernameField.Tag) { SetStatus("Username is required."); return; }
+        if (string.IsNullOrEmpty(code) || code == ((string?)_roomCodeField.Tag)?.ToUpper()) { SetStatus("Room code is required."); return; }
 
-        string server   = $"http://{host}:{port}";
-        string password = _roomPasswordField.Text;
-        SetBusy(true, "Connecting...");
-
+        string server = $"http://{host}:{port}";
+        SetBusy(true, "Connecting…");
         try
         {
             var room = await new ApiClient(server).GetRoomAsync(code);
             SetBusy(false, " ");
-            _callback(server, room.Code, username, room.Name, password);
+            _callback(server, room.Code, username, room.Name,
+                      password == (string?)_roomPasswordField.Tag ? "" : password);
         }
-        catch (Exception ex)
-        {
-            SetBusy(false, $"Error: {RootMessage(ex)}");
-        }
+        catch (Exception ex) { SetBusy(false, $"Error: {Root(ex)}"); }
     }
 
     private async Task HandleCreateAsync()
@@ -158,45 +222,54 @@ public sealed class LoginPanel : Panel
         string port     = _portField.Text.Trim();
         string username = _usernameField.Text.Trim();
         string name     = _newRoomNameField.Text.Trim();
+        string password = _roomPasswordField.Text;
 
         if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(port)) { SetStatus("Server IP and port are required."); return; }
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(name)) { SetStatus("Username and room name are required."); return; }
+        if (string.IsNullOrEmpty(username) || username == (string?)_usernameField.Tag) { SetStatus("Username is required."); return; }
+        if (string.IsNullOrEmpty(name) || name == (string?)_newRoomNameField.Tag) { SetStatus("Room name is required."); return; }
 
-        string server   = $"http://{host}:{port}";
-        string password = _roomPasswordField.Text;
-        SetBusy(true, "Creating room...");
-
+        string server = $"http://{host}:{port}";
+        SetBusy(true, "Creating room…");
         try
         {
             var room = await new ApiClient(server).CreateRoomAsync(name);
             SetBusy(false, " ");
-            _callback(server, room.Code, username, room.Name, password);
+            _callback(server, room.Code, username, room.Name,
+                      password == (string?)_roomPasswordField.Tag ? "" : password);
         }
-        catch (Exception ex)
-        {
-            SetBusy(false, $"Error: {RootMessage(ex)}");
-        }
+        catch (Exception ex) { SetBusy(false, $"Error: {Root(ex)}"); }
     }
 
     private void SetBusy(bool busy, string status)
     {
-        _joinBtn.Enabled          = !busy;
-        _createBtn.Enabled        = !busy;
-        _hostField.Enabled        = !busy;
-        _portField.Enabled        = !busy;
-        _usernameField.Enabled    = !busy;
-        _roomPasswordField.Enabled = !busy;
-        _roomCodeField.Enabled    = !busy;
-        _newRoomNameField.Enabled = !busy;
-        SetStatus(status);
+        _joinBtn.Enabled            = !busy;
+        _createBtn.Enabled          = !busy;
+        _hostField.Enabled          = !busy;
+        _portField.Enabled          = !busy;
+        _usernameField.Enabled      = !busy;
+        _roomPasswordField.Enabled  = !busy;
+        _roomCodeField.Enabled      = !busy;
+        _newRoomNameField.Enabled   = !busy;
+        _statusLabel.Text           = status;
     }
 
     private void SetStatus(string msg) => _statusLabel.Text = msg;
 
-    private static string RootMessage(Exception ex)
+    private static string Root(Exception ex)
     {
         Exception e = ex;
         while (e.InnerException != null) e = e.InnerException;
         return e.Message ?? ex.GetType().Name;
+    }
+
+    private static System.Drawing.Drawing2D.GraphicsPath RoundRect(Rectangle r, int radius)
+    {
+        var p = new System.Drawing.Drawing2D.GraphicsPath();
+        p.AddArc(r.X,               r.Y,               radius * 2, radius * 2, 180, 90);
+        p.AddArc(r.Right - radius * 2, r.Y,             radius * 2, radius * 2, 270, 90);
+        p.AddArc(r.Right - radius * 2, r.Bottom - radius * 2, radius * 2, radius * 2, 0, 90);
+        p.AddArc(r.X,               r.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
+        p.CloseFigure();
+        return p;
     }
 }
