@@ -2,6 +2,7 @@
 target/
 *.class
 *.jar
+!tools/**/*.jar
 *.war
 *.ear
 *.zip
