@@ -1,13 +1,12 @@
 package com.tempchat.client.ui;
 
 import com.tempchat.client.service.ApiClient;
+import com.tempchat.client.service.CryptoService;
 import com.tempchat.client.service.StompClient;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -22,6 +21,7 @@ public class ChatPanel extends JPanel {
     private final String roomCode;
     private final String username;
     private final Runnable onLeave;
+    private final CryptoService crypto;
 
     private final JTextArea chatArea;
     private final JTextField inputField;
@@ -31,17 +31,30 @@ public class ChatPanel extends JPanel {
 
     private StompClient stomp;
 
-    public ChatPanel(String serverUrl, String roomCode, String username, String roomName, Runnable onLeave) {
+    public ChatPanel(String serverUrl, String roomCode, String username,
+                     String roomName, String roomPassword, Runnable onLeave) {
         this.serverUrl = serverUrl;
-        this.roomCode = roomCode;
-        this.username = username;
-        this.onLeave = onLeave;
+        this.roomCode  = roomCode;
+        this.username  = username;
+        this.onLeave   = onLeave;
+
+        CryptoService c = null;
+        if (!roomPassword.isEmpty()) {
+            try {
+                c = new CryptoService(roomPassword, roomCode);
+            } catch (Exception e) {
+                appendLine("** Failed to initialise encryption: " + e.getMessage());
+            }
+        }
+        this.crypto = c;
 
         setLayout(new BorderLayout(6, 6));
         setBorder(new EmptyBorder(10, 12, 10, 12));
 
         // Header
-        infoLabel = new JLabel("Room: " + roomName + "  |  Code: " + roomCode + "  |  You: " + username);
+        String encIcon = (crypto != null) ? "  🔒" : "  ⚠ no password";
+        infoLabel = new JLabel("Room: " + roomName + "  |  Code: " + roomCode +
+                               "  |  You: " + username + encIcon);
         infoLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
         infoLabel.setForeground(Color.DARK_GRAY);
         add(infoLabel, BorderLayout.NORTH);
@@ -86,8 +99,9 @@ public class ChatPanel extends JPanel {
             protected void done() {
                 try {
                     for (ApiClient.ChatMessage msg : get()) {
-                        String time = TIME_FMT.format(Instant.parse(msg.sentAt()));
-                        appendLine("[" + time + "] [" + msg.sender() + "] " + msg.content());
+                        String time    = TIME_FMT.format(Instant.parse(msg.sentAt()));
+                        String content = decryptOrFallback(msg.content());
+                        appendLine("[" + time + "] [" + msg.sender() + "] " + content);
                     }
                 } catch (Exception ignored) {}
                 connectWebSocket();
@@ -102,7 +116,8 @@ public class ChatPanel extends JPanel {
                 + "/ws/websocket";
         try {
             stomp = new StompClient(wsUrl, roomCode, username,
-                    msg -> SwingUtilities.invokeLater(() -> appendLine(msg)),
+                    (sender, content) -> SwingUtilities.invokeLater(() ->
+                            appendLine("[" + sender + "] " + decryptOrFallback(content))),
                     event -> SwingUtilities.invokeLater(() -> appendLine("* " + event)));
             stomp.connect();
         } catch (Exception e) {
@@ -115,10 +130,17 @@ public class ChatPanel extends JPanel {
         if (text.isEmpty() || stomp == null) return;
         inputField.setText("");
         try {
-            stomp.sendChatMessage(text);
+            String payload = (crypto != null) ? crypto.encrypt(text) : text;
+            stomp.sendChatMessage(payload);
         } catch (Exception e) {
             appendLine("** Send failed: " + e.getMessage());
         }
+    }
+
+    private String decryptOrFallback(String content) {
+        if (crypto == null) return content;
+        String plain = crypto.decrypt(content);
+        return (plain != null) ? plain : "[could not decrypt]";
     }
 
     private void leave() {

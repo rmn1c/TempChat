@@ -28,11 +28,12 @@ public class MainFrame extends JFrame {
         pack();
     }
 
-    private void onJoinRoom(String serverUrl, String roomCode, String username, String roomName) {
+    private void onJoinRoom(String serverUrl, String roomCode, String username,
+                            String roomName, String roomPassword) {
         if (chatPanel != null) {
             root.remove(chatPanel);
         }
-        chatPanel = new ChatPanel(serverUrl, roomCode, username, roomName, this::onLeaveRoom);
+        chatPanel = new ChatPanel(serverUrl, roomCode, username, roomName, roomPassword, this::onLeaveRoom);
         root.add(chatPanel, "CHAT");
         cards.show(root, "CHAT");
         setTitle("TempChat — " + roomName + " [" + roomCode + "]");

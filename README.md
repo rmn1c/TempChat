@@ -16,9 +16,10 @@ tempchat/
 
 - Create or join chat rooms with a short room code
 - Real-time messaging via WebSocket (STOMP)
+- **End-to-end encryption** — messages are encrypted client-side with AES-256-GCM; the server only ever stores and relays ciphertext
 - Temporary messages — auto-deleted after 24 hours
 - Rooms auto-close when all users disconnect
-- No account required — just enter a server IP, port, and username
+- No account required — just enter a server IP, port, username, and room password
 
 ---
 
@@ -87,8 +88,16 @@ When you launch TempChat you will see a login screen with the following fields:
 | **Server IP** | IP address or hostname of the TempChat server (default: `localhost`) |
 | **Port** | Port the server is listening on (default: `8080`) |
 | **Username** | The name other users will see in the chat |
+| **Room Password** | Shared secret used to derive the encryption key — **all members must use the same password**. Leave blank to disable encryption. |
 | **Room code** | 6-character code of an existing room — click **Join Room** |
 | **New room name** | Name for a brand-new room — click **Create Room** |
+
+### End-to-end encryption
+
+- The room password never leaves your device.
+- Key derivation: PBKDF2-HMAC-SHA256 (200 000 iterations), salted with the room code, producing a 256-bit AES key.
+- Each message is encrypted with AES-256-GCM (unique 96-bit random IV per message). The server stores `Base64(IV ‖ ciphertext ‖ tag)`.
+- If a message cannot be decrypted (wrong password or legacy plaintext), it is displayed as `[could not decrypt]`.
 
 After joining, share the room code shown in the window title with anyone who should join the same room.
 

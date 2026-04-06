@@ -7,11 +7,15 @@ import org.java_websocket.handshake.ServerHandshake;
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
  * Minimal STOMP-over-WebSocket client.
  * Connects to ws://host/ws/websocket (SockJS raw WebSocket endpoint).
+ *
+ * onMessage receives (sender, content) so the caller can decrypt content
+ * before displaying it.
  */
 public class StompClient extends WebSocketClient {
 
@@ -21,13 +25,14 @@ public class StompClient extends WebSocketClient {
     private final AtomicInteger subId = new AtomicInteger(0);
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
-    private final Consumer<String> onMessage;
+    private final BiConsumer<String, String> onMessage;
     private final Consumer<String> onUserEvent;
     private final String roomCode;
     private final String username;
 
     public StompClient(String wsUrl, String roomCode, String username,
-                       Consumer<String> onMessage, Consumer<String> onUserEvent) throws Exception {
+                       BiConsumer<String, String> onMessage,
+                       Consumer<String> onUserEvent) throws Exception {
         super(new URI(wsUrl));
         this.roomCode = roomCode;
         this.username = username;
@@ -43,25 +48,24 @@ public class StompClient extends WebSocketClient {
     @Override
     public void onMessage(String frame) {
         if (frame.startsWith("CONNECTED")) {
-            subscribeToTopic("/topic/chat/" + roomCode, onMessage);
-            subscribeToTopic("/topic/users/" + roomCode, onUserEvent);
+            subscribeToTopic("/topic/chat/" + roomCode);
+            subscribeToTopic("/topic/users/" + roomCode);
             sendStompMessage("/app/join/" + roomCode, "\"" + username + "\"");
             return;
         }
         if (frame.startsWith("MESSAGE")) {
             String body = extractBody(frame);
-            // Route to the right handler based on the destination header
             String dest = extractHeader(frame, "destination");
             if (dest != null && dest.startsWith("/topic/users/")) {
                 onUserEvent.accept(body.replace("\"", ""));
             } else {
                 try {
                     var node = mapper.readTree(body);
-                    String sender = node.has("sender") ? node.get("sender").asText() : "?";
+                    String sender  = node.has("sender")  ? node.get("sender").asText()  : "?";
                     String content = node.has("content") ? node.get("content").asText() : body;
-                    onMessage.accept("[" + sender + "] " + content);
+                    onMessage.accept(sender, content);
                 } catch (Exception e) {
-                    onMessage.accept(body);
+                    onMessage.accept("?", body);
                 }
             }
         }
@@ -70,8 +74,8 @@ public class StompClient extends WebSocketClient {
     public void sendChatMessage(String content) {
         try {
             String json = mapper.writeValueAsString(Map.of(
-                    "sender", username,
-                    "content", content,
+                    "sender",   username,
+                    "content",  content,
                     "roomCode", roomCode));
             sendStompMessage("/app/chat/" + roomCode, json);
         } catch (Exception e) {
@@ -85,15 +89,12 @@ public class StompClient extends WebSocketClient {
         } catch (Exception ignored) {}
     }
 
-    @Override
-    public void onClose(int code, String reason, boolean remote) {}
-
-    @Override
-    public void onError(Exception ex) {}
+    @Override public void onClose(int code, String reason, boolean remote) {}
+    @Override public void onError(Exception ex) {}
 
     // ---- STOMP helpers ----
 
-    private void subscribeToTopic(String topic, Consumer<String> handler) {
+    private void subscribeToTopic(String topic) {
         String frame = "SUBSCRIBE\nid:sub-" + subId.getAndIncrement() +
                 "\ndestination:" + topic + "\n\n\0";
         send(frame);
