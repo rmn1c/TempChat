@@ -3,16 +3,26 @@ setlocal
 
 set ROOT=%~dp0
 set JAVA_HOME=%ROOT%tools\jdk-21
-set M2_HOME=%ROOT%tools\maven
-set PATH=%JAVA_HOME%\bin;%M2_HOME%\bin;%PATH%
+set MAVEN_HOME=%ROOT%tools\maven
 
 set JAR_NAME=chat-client-0.1.0-SNAPSHOT.jar
 set APP_NAME=TempChat
 set OUT_DIR=%ROOT%dist
 
+set JAVA=%JAVA_HOME%\bin\java.exe
+set JPACKAGE=%JAVA_HOME%\bin\jpackage.exe
+set CLASSWORLDS_JAR=%MAVEN_HOME%\boot\plexus-classworlds-2.9.0.jar
+
 echo [1/2] Building fat JAR...
-cd "%ROOT%chat-client"
-call "%M2_HOME%\bin\mvn.cmd" package -q
+"%JAVA%" ^
+  -classpath "%CLASSWORLDS_JAR%" ^
+  "-Dclassworlds.conf=%MAVEN_HOME%\bin\m2.conf" ^
+  "-Dmaven.home=%MAVEN_HOME%" ^
+  "-Dmaven.multiModuleProjectDirectory=%ROOT%chat-client" ^
+  org.codehaus.plexus.classworlds.launcher.Launcher ^
+  -f "%ROOT%chat-client\pom.xml" ^
+  package -q
+
 if errorlevel 1 (
     echo Build failed.
     exit /b 1
@@ -20,8 +30,8 @@ if errorlevel 1 (
 
 echo [2/2] Packaging as Windows executable...
 if exist "%OUT_DIR%" rmdir /s /q "%OUT_DIR%"
-jpackage ^
-    --input target ^
+"%JPACKAGE%" ^
+    --input "%ROOT%chat-client\target" ^
     --main-jar %JAR_NAME% ^
     --name %APP_NAME% ^
     --app-version 1.0 ^
