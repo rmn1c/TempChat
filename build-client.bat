@@ -3,8 +3,8 @@ setlocal
 
 set ROOT=%~dp0
 set JAVA_HOME=%ROOT%tools\jdk-21
-set MAVEN_HOME=%ROOT%tools\maven
-set PATH=%JAVA_HOME%\bin;%MAVEN_HOME%\bin;%PATH%
+set M2_HOME=%ROOT%tools\maven
+set PATH=%JAVA_HOME%\bin;%M2_HOME%\bin;%PATH%
 
 set JAR_NAME=chat-client-0.1.0-SNAPSHOT.jar
 set APP_NAME=TempChat
@@ -12,7 +12,7 @@ set OUT_DIR=%ROOT%dist
 
 echo [1/2] Building fat JAR...
 cd "%ROOT%chat-client"
-call mvn package -q
+call "%M2_HOME%\bin\mvn.cmd" package -q
 if errorlevel 1 (
     echo Build failed.
     exit /b 1
