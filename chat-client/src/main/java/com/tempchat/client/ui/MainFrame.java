@@ -5,7 +5,8 @@ import java.awt.*;
 
 public class MainFrame extends JFrame {
 
-    private static final String DEFAULT_SERVER = "http://localhost:8080";
+    private static final String DEFAULT_HOST = "localhost";
+    private static final String DEFAULT_PORT = "8080";
 
     private final CardLayout cards = new CardLayout();
     private final JPanel root = new JPanel(cards);
@@ -19,7 +20,7 @@ public class MainFrame extends JFrame {
         setMinimumSize(new Dimension(480, 600));
         setLocationRelativeTo(null);
 
-        loginPanel = new LoginPanel(DEFAULT_SERVER, this::onJoinRoom);
+        loginPanel = new LoginPanel(DEFAULT_HOST, DEFAULT_PORT, this::onJoinRoom);
         root.add(loginPanel, "LOGIN");
 
         setContentPane(root);

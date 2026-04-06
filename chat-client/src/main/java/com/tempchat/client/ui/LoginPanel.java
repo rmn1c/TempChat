@@ -5,7 +5,6 @@ import com.tempchat.client.service.ApiClient;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.util.function.Consumer;
 
 public class LoginPanel extends JPanel {
 
@@ -13,7 +12,8 @@ public class LoginPanel extends JPanel {
         void onJoin(String serverUrl, String roomCode, String username, String roomName);
     }
 
-    private final JTextField serverField;
+    private final JTextField hostField;
+    private final JTextField portField;
     private final JTextField usernameField;
     private final JTextField roomCodeField;
     private final JTextField newRoomNameField;
@@ -22,7 +22,7 @@ public class LoginPanel extends JPanel {
     private final JLabel statusLabel;
     private final JoinCallback callback;
 
-    public LoginPanel(String defaultServer, JoinCallback callback) {
+    public LoginPanel(String defaultHost, String defaultPort, JoinCallback callback) {
         this.callback = callback;
         setLayout(new BorderLayout(10, 10));
         setBorder(new EmptyBorder(30, 40, 30, 40));
@@ -38,23 +38,25 @@ public class LoginPanel extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(6, 4, 6, 4);
 
-        serverField = new JTextField(defaultServer);
+        hostField = new JTextField(defaultHost);
+        portField = new JTextField(defaultPort);
         usernameField = new JTextField();
         roomCodeField = new JTextField();
         newRoomNameField = new JTextField();
 
-        addRow(form, gbc, 0, "Server URL:", serverField);
-        addRow(form, gbc, 1, "Username:", usernameField);
+        addRow(form, gbc, 0, "Server IP:", hostField);
+        addRow(form, gbc, 1, "Port:", portField);
+        addRow(form, gbc, 2, "Username:", usernameField);
 
         JSeparator sep = new JSeparator();
-        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
         gbc.insets = new Insets(14, 4, 14, 4);
         form.add(sep, gbc);
         gbc.gridwidth = 1;
         gbc.insets = new Insets(6, 4, 6, 4);
 
-        addRow(form, gbc, 3, "Room code:", roomCodeField);
-        addRow(form, gbc, 4, "New room name:", newRoomNameField);
+        addRow(form, gbc, 4, "Room code:", roomCodeField);
+        addRow(form, gbc, 5, "New room name:", newRoomNameField);
 
         add(form, BorderLayout.CENTER);
 
@@ -81,16 +83,26 @@ public class LoginPanel extends JPanel {
         panel.add(field, gbc);
     }
 
+    private String buildServerUrl() {
+        String host = hostField.getText().trim();
+        String port = portField.getText().trim();
+        return "http://" + host + ":" + port;
+    }
+
     private void handleJoin() {
-        String server = serverField.getText().trim();
         String username = usernameField.getText().trim();
         String code = roomCodeField.getText().trim().toUpperCase();
 
+        if (hostField.getText().trim().isEmpty() || portField.getText().trim().isEmpty()) {
+            setStatus("Server IP and port are required.");
+            return;
+        }
         if (username.isEmpty() || code.isEmpty()) {
             setStatus("Username and room code are required.");
             return;
         }
 
+        String server = buildServerUrl();
         setStatus("Connecting...");
         setEnabled(false);
 
@@ -115,15 +127,19 @@ public class LoginPanel extends JPanel {
     }
 
     private void handleCreate() {
-        String server = serverField.getText().trim();
         String username = usernameField.getText().trim();
         String name = newRoomNameField.getText().trim();
 
+        if (hostField.getText().trim().isEmpty() || portField.getText().trim().isEmpty()) {
+            setStatus("Server IP and port are required.");
+            return;
+        }
         if (username.isEmpty() || name.isEmpty()) {
             setStatus("Username and room name are required.");
             return;
         }
 
+        String server = buildServerUrl();
         setStatus("Creating room...");
         setEnabled(false);
 
@@ -156,7 +172,8 @@ public class LoginPanel extends JPanel {
         super.setEnabled(enabled);
         joinBtn.setEnabled(enabled);
         createBtn.setEnabled(enabled);
-        serverField.setEnabled(enabled);
+        hostField.setEnabled(enabled);
+        portField.setEnabled(enabled);
         usernameField.setEnabled(enabled);
         roomCodeField.setEnabled(enabled);
         newRoomNameField.setEnabled(enabled);
