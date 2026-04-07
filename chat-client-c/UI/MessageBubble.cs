@@ -18,23 +18,30 @@ internal sealed class MessageBubble : Control
     private int  _bubbleW;
     private int  _textW;
     private int  _singleLineH;
-    private int  _textHeight;   // measured pixel height of wrapped content text
+    private int  _textHeight;
     private bool _isSingleLine;
 
     private const int HorizPad    = 14;
     private const int VertPad     = 8;
     private const int RowMargin   = 6;
     private const int Radius      = 14;
-    private const int InlineTimeW = 46; // px reserved for "HH:mm" on the same line
+    private const int InlineTimeW = 46;
 
-    // NoPadding is critical: without it GDI adds ~3-4 px of side-padding during
-    // DrawText that is NOT reflected in MeasureText, causing DrawText to wrap more
-    // lines than were measured.  The bubble height (sized from MeasureText) ends up
-    // too short and the bottom lines are silently clipped.
-    private const TextFormatFlags BaseFlags =
-        TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
-    private const TextFormatFlags WrapFlags =
-        TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.WordBreak;
+    // GDI+ StringFormat used for both MeasureString and DrawString — the only
+    // way to guarantee that measurement and rendering produce identical line
+    // breaks.  TextRenderer.MeasureText adds a fudge factor to the proposed
+    // width, making it believe the column is wider than DrawText actually uses,
+    // so it underestimates the number of lines needed → bubble too short → clipped.
+    private static readonly StringFormat ContentSF = new()
+    {
+        Trimming      = StringTrimming.None,
+        Alignment     = StringAlignment.Near,
+        LineAlignment = StringAlignment.Near
+    };
+
+    // Shared off-screen surface used for GDI+ text measurement
+    private static readonly Bitmap   MeasureBmp = new(1, 1);
+    private static readonly Graphics MeasureG   = Graphics.FromImage(MeasureBmp);
 
     public MessageBubble(string sender, string content, string time,
                          bool isOwn, int panelClientWidth)
@@ -64,17 +71,13 @@ internal sealed class MessageBubble : Control
 
         int senderH = _isOwn ? 0 : 18;
 
-        // Reference height for a single line — use same flags as drawing
-        _singleLineH = TextRenderer.MeasureText("Tg", Theme.ChatFont,
-            new Size(9999, 200), BaseFlags).Height;
+        // Single-line height via GDI+ font metrics — matches DrawString line spacing
+        _singleLineH = (int)Math.Ceiling(Theme.ChatFont.GetHeight(MeasureG));
 
-        // Is the message short enough to keep the timestamp on the same row?
-        // Test against the REDUCED width so text + timestamp actually fit.
-        var singleTest = TextRenderer.MeasureText(
-            _content, Theme.ChatFont,
-            new Size(_textW - InlineTimeW, 32000), WrapFlags);
-
-        _isSingleLine = singleTest.Height <= _singleLineH + 2;
+        // Single-line check: use the reduced width so the timestamp fits on the same row
+        SizeF szSingle = MeasureG.MeasureString(_content, Theme.ChatFont,
+            _textW - InlineTimeW, ContentSF);
+        _isSingleLine = szSingle.Height <= _singleLineH + 2;
 
         if (_isSingleLine)
         {
@@ -82,15 +85,17 @@ internal sealed class MessageBubble : Control
         }
         else
         {
-            var full = TextRenderer.MeasureText(
-                _content, Theme.ChatFont,
-                new Size(_textW, 32000), WrapFlags);
-            _textHeight = full.Height;
+            // Full-width measurement — GDI+ MeasureString and DrawString are
+            // guaranteed to use identical layout so the measured height always
+            // exactly covers what DrawString will render
+            SizeF szFull = MeasureG.MeasureString(_content, Theme.ChatFont,
+                _textW, ContentSF);
+            _textHeight = (int)Math.Ceiling(szFull.Height);
         }
 
         int contentH = _isSingleLine
             ? _singleLineH
-            : _textHeight + 4 + 14; // text + gap + timestamp row
+            : _textHeight + 4 + 14;
 
         Height = VertPad + senderH + contentH + VertPad + RowMargin;
         Invalidate();
@@ -119,38 +124,41 @@ internal sealed class MessageBubble : Control
         int tx = bx + HorizPad;
         int ty = VertPad;
 
+        // Sender name (incoming only) — single-line, TextRenderer is fine here
         if (!_isOwn)
         {
             TextRenderer.DrawText(g, _sender, Theme.SenderFont,
                 new Rectangle(tx, ty, _textW, 18),
                 Theme.Purple,
-                TextFormatFlags.EndEllipsis | BaseFlags);
+                TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             ty += 18;
         }
 
         if (_isSingleLine)
         {
+            // Single-line: text left portion + timestamp right-aligned on same row
             TextRenderer.DrawText(g, _content, Theme.ChatFont,
                 new Rectangle(tx, ty, _textW - InlineTimeW, _singleLineH),
-                Theme.Text, BaseFlags);
+                Theme.Text,
+                TextFormatFlags.NoPrefix);
 
             int timeY = ty + (_singleLineH - 14) / 2;
             TextRenderer.DrawText(g, _time, Theme.TimeFont,
                 new Rectangle(bx + HorizPad, timeY, _textW, 14),
                 Theme.SubText,
-                TextFormatFlags.Right | BaseFlags);
+                TextFormatFlags.Right | TextFormatFlags.NoPrefix);
         }
         else
         {
-            // Draw with exactly the measured height — NoPadding keeps Measure/Draw in sync
-            TextRenderer.DrawText(g, _content, Theme.ChatFont,
-                new Rectangle(tx, ty, _textW, _textHeight),
-                Theme.Text, WrapFlags);
+            // Multi-line: use GDI+ DrawString — guaranteed consistent with MeasureString
+            using var textBrush = new SolidBrush(Theme.Text);
+            g.DrawString(_content, Theme.ChatFont, textBrush,
+                new RectangleF(tx, ty, _textW, _textHeight), ContentSF);
 
             TextRenderer.DrawText(g, _time, Theme.TimeFont,
                 new Rectangle(bx, Height - VertPad - 14 - RowMargin, _bubbleW - HorizPad, 14),
                 Theme.SubText,
-                TextFormatFlags.Right | BaseFlags);
+                TextFormatFlags.Right | TextFormatFlags.NoPrefix);
         }
     }
 
