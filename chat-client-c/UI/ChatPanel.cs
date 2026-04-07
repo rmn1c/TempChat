@@ -14,11 +14,19 @@ public sealed class ChatPanel : Panel, IDisposable
     private readonly CryptoService? _crypto;
 
     private readonly Panel   _scrollPanel;
+    private readonly Panel   _contentPanel;
+    private readonly Control _scrollDownBtn;
     private readonly TextBox _inputField;
 
     private readonly List<(Msg msg, MessageBubble bubble)> _rows = new();
-    private int          _nextTop = 12;
+    private readonly HashSet<string> _historyFingerprints = new();
+    private int          _nextTop  = 12;
+    private int          _scrollY  = 0;
     private StompClient? _stomp;
+    private IMessageFilter? _wheelFilter;
+
+    private int  MaxScroll  => Math.Max(0, _contentPanel.Height - _scrollPanel.ClientHeight);
+    private bool IsAtBottom() => _scrollY >= MaxScroll - 80;
 
     public ChatPanel(string serverUrl, string roomCode, string username,
                      string roomName, string roomPassword, Action onLeave)
@@ -47,7 +55,6 @@ public sealed class ChatPanel : Panel, IDisposable
             e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
         };
 
-        // Small, compact leave button — vertically centered manually
         var leaveBtn = new RoundButton("Leave", primary: false)
         {
             Width  = 60,
@@ -100,18 +107,40 @@ public sealed class ChatPanel : Panel, IDisposable
         header.Controls.Add(roomLbl);
         header.Controls.Add(codeLbl);
         header.Controls.Add(leaveBtn);
-        // Trigger manual layout immediately
         header.SizeChanged += (_, _) => { };
 
-        // ── Scroll panel ──────────────────────────────────────────────
+        // ── Scroll panel (outer, clips, no scrollbars) ────────────────
         _scrollPanel = new DoubleBufferedPanel
         {
-            Dock       = DockStyle.Fill,
-            BackColor  = Theme.ChatBg,
-            AutoScroll = true,
-            Padding    = new Padding(0, 6, 0, 6)
+            Dock      = DockStyle.Fill,
+            BackColor = Theme.ChatBg
         };
-        _scrollPanel.Resize += (_, _) => Relayout();
+
+        // ── Content panel (inner, moves up/down for scrolling) ────────
+        _contentPanel = new Panel
+        {
+            BackColor = Theme.ChatBg,
+            Left      = 0,
+            Top       = 0,
+            Padding   = Padding.Empty
+        };
+        _scrollPanel.Controls.Add(_contentPanel);
+
+        // ── Scroll-down overlay button ────────────────────────────────
+        _scrollDownBtn = new ScrollDownButton { Visible = false };
+        _scrollDownBtn.Click += (_, _) => ScrollToBottom();
+        _scrollPanel.Controls.Add(_scrollDownBtn);
+        _scrollDownBtn.BringToFront();
+
+        _scrollPanel.Resize += (_, _) =>
+        {
+            _contentPanel.Width = _scrollPanel.ClientWidth;
+            Relayout();
+        };
+
+        // Mouse wheel: intercept WM_MOUSEWHEEL for the scroll area regardless of focus
+        _wheelFilter = new WheelMessageFilter(_scrollPanel, DoScroll);
+        Application.AddMessageFilter(_wheelFilter);
 
         // ── Input bar ─────────────────────────────────────────────────
         var inputBar = new Panel
@@ -127,11 +156,10 @@ public sealed class ChatPanel : Panel, IDisposable
             e.Graphics.DrawLine(pen, 0, 0, inputBar.Width, 0);
         };
 
-        // Input field pill — BackColor matches parent so rounded corners don't bleed
         var inputWrap = new Panel
         {
             Dock      = DockStyle.Fill,
-            BackColor = Theme.HeaderBg   // ← must match parent to hide rect corners
+            BackColor = Theme.HeaderBg
         };
         inputWrap.Paint += (_, e) =>
         {
@@ -173,7 +201,6 @@ public sealed class ChatPanel : Panel, IDisposable
         };
         inputWrap.Controls.Add(_inputField);
 
-        // Small gap between pill and send button
         var sendGap = new Panel { Width = 8, Dock = DockStyle.Right, BackColor = Theme.HeaderBg };
 
         var sendBtn = new RoundButton("Send")
@@ -201,42 +228,75 @@ public sealed class ChatPanel : Panel, IDisposable
         _ = LoadAndConnectAsync();
     }
 
+    // ── Scrolling ─────────────────────────────────────────────────────
+
+    // delta: positive = wheel up (scroll toward top), negative = wheel down
+    private void DoScroll(int delta)
+    {
+        int change = -(delta / 120) * 60;
+        _scrollY = Math.Clamp(_scrollY + change, 0, MaxScroll);
+        _contentPanel.Top = -_scrollY;
+        UpdateScrollDownButton();
+    }
+
+    private void ScrollToBottom()
+    {
+        _scrollY = MaxScroll;
+        _contentPanel.Top = -_scrollY;
+        UpdateScrollDownButton();
+    }
+
+    private void UpdateScrollDownButton()
+    {
+        bool show = MaxScroll > 50 && !IsAtBottom();
+        _scrollDownBtn.Visible = show;
+        if (show)
+        {
+            _scrollDownBtn.Left = _scrollPanel.ClientWidth  - _scrollDownBtn.Width  - 16;
+            _scrollDownBtn.Top  = _scrollPanel.ClientHeight - _scrollDownBtn.Height - 16;
+            _scrollDownBtn.BringToFront();
+        }
+    }
+
     // ── Messages ──────────────────────────────────────────────────────
 
     private void AddMessage(string sender, string content, string time,
                             bool isOwn, bool animate)
     {
+        int w      = Math.Max(_contentPanel.ClientSize.Width, _scrollPanel.ClientWidth);
         var msg    = new Msg(sender, content, time, isOwn);
-        var bubble = new MessageBubble(sender, content, time, isOwn,
-                                       _scrollPanel.ClientSize.Width);
+        var bubble = new MessageBubble(sender, content, time, isOwn, w);
         bubble.Top  = _nextTop;
         _nextTop   += bubble.Height;
 
         _rows.Add((msg, bubble));
-        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 12);
-        _scrollPanel.Controls.Add(bubble);
+        _contentPanel.Height = _nextTop + 12;
+        _contentPanel.Controls.Add(bubble);
 
         if (animate) bubble.AnimateIn();
-        ScrollToBottom();
+
+        // Always scroll to bottom for own messages; otherwise only if already near bottom
+        if (isOwn || IsAtBottom())
+            ScrollToBottom();
+        else
+            UpdateScrollDownButton();
     }
 
     private void Relayout()
     {
         _scrollPanel.SuspendLayout();
+        _contentPanel.Width = _scrollPanel.ClientWidth;
         _nextTop = 12;
         foreach (var (_, bubble) in _rows)
         {
-            bubble.Relayout(_scrollPanel.ClientSize.Width);
+            bubble.Relayout(_contentPanel.ClientSize.Width);
             bubble.Top  = _nextTop;
             _nextTop   += bubble.Height;
         }
-        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 12);
+        _contentPanel.Height = _nextTop + 12;
         _scrollPanel.ResumeLayout();
         ScrollToBottom();
     }
-
-    private void ScrollToBottom() =>
-        _scrollPanel.AutoScrollPosition = new Point(0, _nextTop);
 
     // ── Network ───────────────────────────────────────────────────────
 
@@ -247,8 +307,11 @@ public sealed class ChatPanel : Panel, IDisposable
             var history = await new ApiClient(_serverUrl).GetMessagesAsync(_roomCode);
             foreach (var m in history)
             {
-                string t = DateTime.Parse(m.SentAt).ToLocalTime().ToString("HH:mm");
-                AddMessage(m.Sender, Decrypt(m.Content), t, m.Sender == _username, false);
+                string t     = DateTime.Parse(m.SentAt).ToLocalTime().ToString("HH:mm");
+                string plain = Decrypt(m.Content);
+                // Register fingerprint so WS echo of this message is skipped
+                _historyFingerprints.Add(MakeFingerprint(m.Sender, m.Content));
+                AddMessage(m.Sender, plain, t, m.Sender == _username, false);
             }
         }
         catch (Exception ex) { AddSystemLine($"Could not load history: {ex.Message}"); }
@@ -267,6 +330,9 @@ public sealed class ChatPanel : Panel, IDisposable
             _stomp = new StompClient(wsUrl, _roomCode, _username,
                 onMessage: (sender, content) => SafeInvoke(() =>
                 {
+                    // Skip if this is an echo of a history message
+                    if (_historyFingerprints.Remove(MakeFingerprint(sender, content))) return;
+
                     string plain = Decrypt(content);
                     string t     = DateTime.Now.ToString("HH:mm");
                     AddMessage(sender, plain, t, sender == _username, true);
@@ -307,6 +373,9 @@ public sealed class ChatPanel : Panel, IDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────
 
+    private static string MakeFingerprint(string sender, string content)
+        => $"{sender}\x00{content}";
+
     private string Decrypt(string content)
     {
         if (_crypto == null) return content;
@@ -322,14 +391,14 @@ public sealed class ChatPanel : Panel, IDisposable
             Font      = Theme.SubFont,
             AutoSize  = false,
             Height    = 22,
-            Width     = _scrollPanel.ClientSize.Width,
+            Width     = _contentPanel.ClientSize.Width,
             Top       = _nextTop,
             Left      = 0,
             TextAlign = ContentAlignment.MiddleCenter
         };
         _nextTop += 26;
-        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 12);
-        _scrollPanel.Controls.Add(lbl);
+        _contentPanel.Height = _nextTop + 12;
+        _contentPanel.Controls.Add(lbl);
         ScrollToBottom();
     }
 
@@ -354,7 +423,16 @@ public sealed class ChatPanel : Panel, IDisposable
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _stomp?.Dispose(); _stomp = null; }
+        if (disposing)
+        {
+            if (_wheelFilter != null)
+            {
+                Application.RemoveMessageFilter(_wheelFilter);
+                _wheelFilter = null;
+            }
+            _stomp?.Dispose();
+            _stomp = null;
+        }
         base.Dispose(disposing);
     }
 }
@@ -362,4 +440,78 @@ public sealed class ChatPanel : Panel, IDisposable
 file sealed class DoubleBufferedPanel : Panel
 {
     public DoubleBufferedPanel() => DoubleBuffered = true;
+}
+
+file sealed class ScrollDownButton : Control
+{
+    public ScrollDownButton()
+    {
+        SetStyle(
+            ControlStyles.UserPaint |
+            ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Size      = new Size(36, 36);
+        Cursor    = Cursors.Hand;
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        // Semi-transparent dark circle
+        using var bg = new SolidBrush(Color.FromArgb(200, 42, 57, 73));
+        g.FillEllipse(bg, 1, 1, Width - 3, Height - 3);
+
+        // Subtle border
+        using var border = new Pen(Color.FromArgb(100, 154, 167, 178), 1f);
+        g.DrawEllipse(border, 1, 1, Width - 3, Height - 3);
+
+        // Down-chevron arrow
+        using var arrow = new Pen(Color.FromArgb(230, 230, 235, 240), 2f)
+        {
+            StartCap = System.Drawing.Drawing2D.LineCap.Round,
+            EndCap   = System.Drawing.Drawing2D.LineCap.Round,
+            LineJoin = System.Drawing.Drawing2D.LineJoin.Round
+        };
+        int cx = Width / 2, cy = Height / 2;
+        g.DrawLines(arrow, new PointF[] {
+            new(cx - 6, cy - 2),
+            new(cx,     cy + 4),
+            new(cx + 6, cy - 2)
+        });
+    }
+}
+
+/// <summary>
+/// Routes WM_MOUSEWHEEL to the scroll panel whenever the cursor is inside it,
+/// regardless of which control has keyboard focus.
+/// </summary>
+file sealed class WheelMessageFilter : IMessageFilter
+{
+    private const int WM_MOUSEWHEEL = 0x020A;
+    private readonly Control     _target;
+    private readonly Action<int> _onScroll;
+
+    public WheelMessageFilter(Control target, Action<int> onScroll)
+    {
+        _target   = target;
+        _onScroll = onScroll;
+    }
+
+    public bool PreFilterMessage(ref Message m)
+    {
+        if (m.Msg != WM_MOUSEWHEEL || _target.IsDisposed) return false;
+        try
+        {
+            var bounds = _target.RectangleToScreen(_target.ClientRectangle);
+            if (!bounds.Contains(Cursor.Position)) return false;
+            int delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
+            _onScroll(delta);
+            return true; // consume — prevent any other scroll handler
+        }
+        catch { return false; }
+    }
 }

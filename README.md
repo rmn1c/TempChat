@@ -1,15 +1,13 @@
 # TempChat
 
-A temporary chat application with a Java Spring Boot server and a Java Swing desktop client. Chat rooms are ephemeral — messages are automatically deleted after 24 hours and rooms are cleaned up when empty.
+A temporary chat application with a Java Spring Boot server and a C# WinForms desktop client. Chat rooms are ephemeral — messages are automatically deleted after 24 hours and rooms are cleaned up when empty.
 
 ## Architecture
 
 ```
 tempchat/
 ├── chat-server/        # Spring Boot + PostgreSQL backend
-├── chat-client/        # Java Swing desktop client
-├── build-client.bat    # Windows build script → produces TempChat.exe
-└── build-client.sh     # Linux / macOS build script
+└── chat-client-c/      # C# (.NET 8) WinForms desktop client
 ```
 
 ## Features
@@ -25,13 +23,20 @@ tempchat/
 
 ## Prerequisites
 
+### Server
+
 | Tool | Version | Notes |
 |------|---------|-------|
 | Java JDK | 21+ | Must include `jpackage` (standard since JDK 14) |
 | Maven | 3.9+ | |
 | Docker | any | For the bundled PostgreSQL |
 
-> **Windows only:** Building an installer (`--type exe`) also requires [WiX Toolset 3.x](https://wixtoolset.org/). The default scripts use `--type app-image` which needs no extra tools.
+### Client (C# WinForms)
+
+| Tool | Version | Notes |
+|------|---------|-------|
+| .NET SDK | 8.0+ | [Download](https://dotnet.microsoft.com/download) |
+| Windows | any | WinForms targets `net8.0-windows` — Windows only |
 
 ---
 
@@ -54,28 +59,29 @@ The server listens on `http://localhost:8080` by default.
 
 ---
 
-## Building the Client as an Executable
+## Building the C# Client
 
-Run the appropriate script from the **project root** — it compiles a fat JAR and wraps it with `jpackage` into a self-contained native application (bundles its own JRE, no Java install needed on end-user machines).
+The client is a standard .NET 8 WinForms project located in `chat-client-c/`.
 
-### Windows
-
-```bat
-build-client.bat
-```
-
-Output: `dist\TempChat\TempChat.exe`
-
-### Linux / macOS
+### Run directly (dev mode)
 
 ```bash
-chmod +x build-client.sh
-./build-client.sh
+cd chat-client-c
+dotnet run
 ```
 
-Output: `dist/TempChat/TempChat`
+### Build a release executable
 
-The `dist/TempChat/` folder is fully self-contained — copy it anywhere and run the executable.
+```bash
+cd chat-client-c
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+```
+
+Output: `chat-client-c/bin/Release/net8.0-windows/win-x64/publish/TempChat.exe`
+
+The published executable is self-contained — it bundles the .NET runtime so no .NET install is required on end-user machines.
+
+To target 32-bit Windows replace `win-x64` with `win-x86`.
 
 ---
 
@@ -100,15 +106,6 @@ When you launch TempChat you will see a login screen with the following fields:
 - If a message cannot be decrypted (wrong password or legacy plaintext), it is displayed as `[could not decrypt]`.
 
 After joining, share the room code shown in the window title with anyone who should join the same room.
-
----
-
-## Running the Client Without Building (dev mode)
-
-```bash
-cd chat-client
-mvn compile exec:java
-```
 
 ---
 
