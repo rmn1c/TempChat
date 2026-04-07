@@ -14,10 +14,17 @@ internal sealed class MessageBubble : Control
     private readonly string _content;
     private readonly string _time;
 
-    private const int HorizPad  = 14;
-    private const int VertPad   = 8;
-    private const int RowMargin = 6;   // gap between rows
-    private const int Radius    = 14;  // bubble corner radius
+    // Cached layout values — computed in Relayout, consumed in OnPaint
+    private int  _bubbleW;
+    private int  _textW;
+    private int  _singleLineH;
+    private bool _isSingleLine;
+
+    private const int HorizPad    = 14;
+    private const int VertPad     = 8;
+    private const int RowMargin   = 6;   // gap between rows
+    private const int Radius      = 14;  // bubble corner radius
+    private const int InlineTimeW = 46;  // px reserved for "HH:mm" on same line
 
     public MessageBubble(string sender, string content, string time,
                          bool isOwn, int panelClientWidth)
@@ -43,18 +50,29 @@ internal sealed class MessageBubble : Control
         int available = Math.Max(panelClientWidth, 150);
         Width = available;
 
-        int bubbleW  = (int)(available * 0.65);
-        int textW    = bubbleW - HorizPad * 2;
-        bool showSndr = !_isOwn;
-        int senderH  = showSndr ? 18 : 0;
+        // Text wraps at 60% of available width; bubble adds horizontal padding
+        _textW   = (int)(available * 0.60);
+        _bubbleW = _textW + HorizPad * 2;
 
+        int senderH = _isOwn ? 0 : 18;
+
+        // Measure single-line height once using a tall reference string
+        _singleLineH = TextRenderer.MeasureText("Tg", Theme.ChatFont,
+            new Size(9999, 200), TextFormatFlags.NoPrefix).Height;
+
+        // Measure actual text — if it fits on one line, display time inline
         var textSize = TextRenderer.MeasureText(
             _content, Theme.ChatFont,
-            new Size(textW, int.MaxValue),
+            new Size(_textW, int.MaxValue),
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
-        int timeH  = 14;
-        Height = VertPad + senderH + textSize.Height + 4 + timeH + VertPad + RowMargin;
+        _isSingleLine = textSize.Height <= _singleLineH + 2;
+
+        int contentH = _isSingleLine
+            ? _singleLineH                          // time sits on the same row
+            : textSize.Height + 4 + 14;            // text + gap + time row below
+
+        Height = VertPad + senderH + contentH + VertPad + RowMargin;
         Invalidate();
     }
 
@@ -66,23 +84,20 @@ internal sealed class MessageBubble : Control
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
         int available = Width;
-        int bubbleW   = (int)(available * 0.65);
         int margin    = (int)(available * 0.04);
-        int bx        = _isOwn ? available - bubbleW - margin : margin;
+        int bx        = _isOwn ? available - _bubbleW - margin : margin;
 
-        var bubbleRect = new Rectangle(bx, 0, bubbleW, Height - RowMargin);
+        var bubbleRect = new Rectangle(bx, 0, _bubbleW, Height - RowMargin);
 
-        // Draw bubble — solid fill, no gradient
+        // Bubble fill — solid, no gradient
         using var path = RoundedPath(bubbleRect, Radius);
-        Color bubbleColor = _isOwn ? Theme.OwnBubble : Theme.OtherBubble;
-        using var fill = new SolidBrush(bubbleColor);
+        using var fill = new SolidBrush(_isOwn ? Theme.OwnBubble : Theme.OtherBubble);
         g.FillPath(fill, path);
 
-        // Very subtle inner highlight (1px, low-alpha white) for depth
+        // Very subtle inner highlight for depth
         using var highlight = new Pen(Color.FromArgb(18, 255, 255, 255), 1f);
         g.DrawPath(highlight, path);
 
-        // Content Y cursor inside the bubble
         int tx = bx + HorizPad;
         int ty = VertPad;
 
@@ -90,25 +105,41 @@ internal sealed class MessageBubble : Control
         if (!_isOwn)
         {
             TextRenderer.DrawText(g, _sender, Theme.SenderFont,
-                new Rectangle(tx, ty, bubbleW - HorizPad * 2, 18),
-                Theme.Accent,
+                new Rectangle(tx, ty, _textW, 18),
+                Theme.Purple,
                 TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             ty += 18;
         }
 
-        // Message text
-        int textW    = bubbleW - HorizPad * 2;
-        int textMaxH = Height - ty - 14 - VertPad - RowMargin;
-        TextRenderer.DrawText(g, _content, Theme.ChatFont,
-            new Rectangle(tx, ty, textW, textMaxH),
-            Theme.Text,
-            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        if (_isSingleLine)
+        {
+            // Text takes left portion; timestamp sits right-aligned on same row
+            TextRenderer.DrawText(g, _content, Theme.ChatFont,
+                new Rectangle(tx, ty, _textW - InlineTimeW, _singleLineH),
+                Theme.Text,
+                TextFormatFlags.NoPrefix);
 
-        // Timestamp — bottom-right of bubble, muted
-        TextRenderer.DrawText(g, _time, Theme.TimeFont,
-            new Rectangle(bx, Height - VertPad - 14 - RowMargin, bubbleW - HorizPad, 14),
-            Theme.SubText,
-            TextFormatFlags.Right | TextFormatFlags.NoPrefix);
+            // Time vertically centered within the single text line
+            int timeY = ty + (_singleLineH - 14) / 2;
+            TextRenderer.DrawText(g, _time, Theme.TimeFont,
+                new Rectangle(bx + HorizPad, timeY, _textW, 14),
+                Theme.SubText,
+                TextFormatFlags.Right | TextFormatFlags.NoPrefix);
+        }
+        else
+        {
+            // Multi-line: text full width, timestamp below on its own row
+            int textMaxH = Height - ty - 14 - VertPad - RowMargin;
+            TextRenderer.DrawText(g, _content, Theme.ChatFont,
+                new Rectangle(tx, ty, _textW, textMaxH),
+                Theme.Text,
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+
+            TextRenderer.DrawText(g, _time, Theme.TimeFont,
+                new Rectangle(bx, Height - VertPad - 14 - RowMargin, _bubbleW - HorizPad, 14),
+                Theme.SubText,
+                TextFormatFlags.Right | TextFormatFlags.NoPrefix);
+        }
     }
 
     public void AnimateIn()
@@ -121,7 +152,7 @@ internal sealed class MessageBubble : Control
         {
             step++;
             double progress = step / 9.0;
-            Top = target + (int)(16 * (1.0 - progress * (2 - progress))); // ease-out quad
+            Top = target + (int)(16 * (1.0 - progress * (2 - progress)));
             if (step >= 9) { Top = target; t.Stop(); t.Dispose(); }
         };
         t.Start();

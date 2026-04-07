@@ -37,25 +37,28 @@ public sealed class ChatPanel : Panel, IDisposable
         var header = new Panel
         {
             Dock      = DockStyle.Top,
-            Height    = 60,
+            Height    = 68,
             BackColor = Theme.HeaderBg,
-            Padding   = new Padding(20, 0, 14, 0)
+            Padding   = new Padding(20, 10, 16, 10)
         };
-        // Bottom separator line
         header.Paint += (_, e) =>
         {
             using var pen = new Pen(Theme.Border, 1);
             e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
         };
 
+        // Small, compact leave button — vertically centered manually
         var leaveBtn = new RoundButton("Leave", primary: false)
         {
-            Dock  = DockStyle.Right,
-            Width = 72
+            Width  = 60,
+            Height = 26
         };
-        // Vertically center leaveBtn within the header
+        leaveBtn.Anchor = AnchorStyles.Right | AnchorStyles.Top;
         header.SizeChanged += (_, _) =>
-            leaveBtn.Top = (header.Height - leaveBtn.Height) / 2;
+        {
+            leaveBtn.Left = header.Width - header.Padding.Right - leaveBtn.Width;
+            leaveBtn.Top  = (header.Height - leaveBtn.Height) / 2;
+        };
 
         var roomLbl = new Label
         {
@@ -63,7 +66,7 @@ public sealed class ChatPanel : Panel, IDisposable
             Font      = Theme.HeaderFont,
             ForeColor = Theme.Text,
             Dock      = DockStyle.Top,
-            Height    = 30,
+            Height    = 28,
             TextAlign = ContentAlignment.BottomLeft
         };
 
@@ -73,7 +76,7 @@ public sealed class ChatPanel : Panel, IDisposable
             Font      = Theme.SubFont,
             ForeColor = Theme.SubText,
             Dock      = DockStyle.Bottom,
-            Height    = 18,
+            Height    = 20,
             TextAlign = ContentAlignment.TopLeft,
             Cursor    = Cursors.Hand
         };
@@ -97,6 +100,8 @@ public sealed class ChatPanel : Panel, IDisposable
         header.Controls.Add(roomLbl);
         header.Controls.Add(codeLbl);
         header.Controls.Add(leaveBtn);
+        // Trigger manual layout immediately
+        header.SizeChanged += (_, _) => { };
 
         // ── Scroll panel ──────────────────────────────────────────────
         _scrollPanel = new DoubleBufferedPanel
@@ -104,7 +109,7 @@ public sealed class ChatPanel : Panel, IDisposable
             Dock       = DockStyle.Fill,
             BackColor  = Theme.ChatBg,
             AutoScroll = true,
-            Padding    = new Padding(0, 4, 0, 4)
+            Padding    = new Padding(0, 6, 0, 6)
         };
         _scrollPanel.Resize += (_, _) => Relayout();
 
@@ -112,32 +117,33 @@ public sealed class ChatPanel : Panel, IDisposable
         var inputBar = new Panel
         {
             Dock      = DockStyle.Bottom,
-            Height    = 66,
+            Height    = 68,
             BackColor = Theme.HeaderBg,
-            Padding   = new Padding(14, 12, 14, 12)
+            Padding   = new Padding(14, 14, 14, 14)
         };
-        // Top separator line
         inputBar.Paint += (_, e) =>
         {
             using var pen = new Pen(Theme.Border, 1);
             e.Graphics.DrawLine(pen, 0, 0, inputBar.Width, 0);
         };
 
-        // Input field wrapper — rounded pill
+        // Input field pill — BackColor matches parent so rounded corners don't bleed
         var inputWrap = new Panel
         {
             Dock      = DockStyle.Fill,
-            BackColor = Theme.InputBg
+            BackColor = Theme.HeaderBg   // ← must match parent to hide rect corners
         };
         inputWrap.Paint += (_, e) =>
         {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(Theme.HeaderBg);
             var r = new Rectangle(0, 0, inputWrap.Width - 1, inputWrap.Height - 1);
-            using var path = Pill(r);
-            using var fill = new SolidBrush(Theme.InputBg);
-            e.Graphics.FillPath(fill, path);
+            using var path   = Pill(r);
+            using var fill   = new SolidBrush(Theme.InputBg);
             using var border = new Pen(Theme.Border, 1);
-            e.Graphics.DrawPath(border, path);
+            g.FillPath(fill, path);
+            g.DrawPath(border, path);
         };
 
         _inputField = new TextBox
@@ -167,13 +173,17 @@ public sealed class ChatPanel : Panel, IDisposable
         };
         inputWrap.Controls.Add(_inputField);
 
+        // Small gap between pill and send button
+        var sendGap = new Panel { Width = 8, Dock = DockStyle.Right, BackColor = Theme.HeaderBg };
+
         var sendBtn = new RoundButton("Send")
         {
             Dock  = DockStyle.Right,
-            Width = 70
+            Width = 68
         };
 
         inputBar.Controls.Add(inputWrap);
+        inputBar.Controls.Add(sendGap);
         inputBar.Controls.Add(sendBtn);
 
         // ── Assemble ──────────────────────────────────────────────────
@@ -334,10 +344,10 @@ public sealed class ChatPanel : Panel, IDisposable
     {
         int rad = r.Height;
         var p   = new GraphicsPath();
-        p.AddArc(r.X,          r.Y,           rad, rad, 180, 90);
-        p.AddArc(r.Right - rad, r.Y,           rad, rad, 270, 90);
+        p.AddArc(r.X,           r.Y,            rad, rad, 180, 90);
+        p.AddArc(r.Right - rad, r.Y,            rad, rad, 270, 90);
         p.AddArc(r.Right - rad, r.Bottom - rad, rad, rad,   0, 90);
-        p.AddArc(r.X,          r.Bottom - rad, rad, rad,  90, 90);
+        p.AddArc(r.X,           r.Bottom - rad, rad, rad,  90, 90);
         p.CloseFigure();
         return p;
     }

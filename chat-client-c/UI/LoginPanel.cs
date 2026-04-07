@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using TempChat.Services;
 
 namespace TempChat.UI;
@@ -31,14 +32,14 @@ public sealed class LoginPanel : Panel
             BackColor = Theme.Surface,
             Padding   = new Padding(32, 28, 32, 28)
         };
-        center.Paint += PaintRoundedPanel;
+        center.Paint += PaintCard;
 
         // ── Title ─────────────────────────────────────────────────────
         var title = new Label
         {
             Text      = "TempChat",
             Font      = Theme.TitleFont,
-            ForeColor = Theme.Accent,
+            ForeColor = Theme.Purple,
             Dock      = DockStyle.Top,
             Height    = 52,
             TextAlign = ContentAlignment.MiddleCenter
@@ -55,29 +56,20 @@ public sealed class LoginPanel : Panel
         };
 
         // ── Fields ────────────────────────────────────────────────────
-        _hostField            = Theme.MakeTextBox();
-        _hostField.Text       = defaultHost;
-        _hostField.ForeColor  = Theme.Text;
+        _hostField             = Theme.MakeTextBox();
+        _hostField.Text        = defaultHost;
+        _hostField.ForeColor   = Theme.Text;
 
-        _portField            = Theme.MakeTextBox();
-        _portField.Text       = defaultPort;
-        _portField.ForeColor  = Theme.Text;
+        _portField             = Theme.MakeTextBox();
+        _portField.Text        = defaultPort;
+        _portField.ForeColor   = Theme.Text;
 
         _usernameField     = Theme.MakeTextBox("Username");
         _roomPasswordField = Theme.MakeTextBox("Room password (for encryption)", password: true);
         _roomCodeField     = Theme.MakeTextBox("Room code");
         _newRoomNameField  = Theme.MakeTextBox("New room name");
 
-        // Host + Port on same row
-        var serverRow = new Panel { Dock = DockStyle.Top, Height = 38, Margin = new Padding(0, 0, 0, 6) };
-        var hostWrap  = new Panel { Dock = DockStyle.Fill,  BackColor = Theme.InputBg, Padding = new Padding(10, 7, 6, 7) };
-        var portWrap  = new Panel { Dock = DockStyle.Right, Width = 80, BackColor = Theme.InputBg, Padding = new Padding(6, 7, 10, 7) };
-        _hostField.Dock = DockStyle.Fill;
-        _portField.Dock = DockStyle.Fill;
-        hostWrap.Controls.Add(_hostField);
-        portWrap.Controls.Add(_portField);
-        serverRow.Controls.Add(hostWrap);
-        serverRow.Controls.Add(portWrap);
+        var serverRow = MakeServerBubble(_hostField, _portField);
 
         _joinBtn   = Theme.MakeButton("Join Room");
         _createBtn = Theme.MakeButton("Create Room", primary: false);
@@ -122,17 +114,17 @@ public sealed class LoginPanel : Panel
             Spacer(4),
             _joinBtn,
             Spacer(6),
-            Wrap(_newRoomNameField),
-            Wrap(_roomCodeField),
+            WrapBubble(_newRoomNameField),
+            WrapBubble(_roomCodeField),
             sepLabel,
-            Wrap(_roomPasswordField),
+            WrapBubble(_roomPasswordField),
             hint,
             Spacer(4),
-            Wrap(_usernameField),
+            WrapBubble(_usernameField),
             Spacer(4),
             serverRow,
-            Wrap(sub),
-            Wrap(title),
+            WrapLabel(sub),
+            WrapLabel(title),
             Spacer(4),
         };
         foreach (var c in controls) { c.Dock = DockStyle.Top; form.Controls.Add(c); }
@@ -150,15 +142,130 @@ public sealed class LoginPanel : Panel
 
     private void PositionCenter(Panel center)
     {
-        center.Height = Math.Min(Height - 60, 620);
+        center.Height = Math.Min(Height - 60, 640);
         center.Left   = (Width  - center.Width)  / 2;
         center.Top    = (Height - center.Height) / 2;
     }
 
-    private static void PaintRoundedPanel(object? sender, PaintEventArgs e)
+    // ── Bubble field wrapper — rounded corners, shadow, vertically centred TB ──
+
+    private static Panel WrapBubble(TextBox tb)
+    {
+        const int bubbleH = 36;
+        const int radius  = 10;
+
+        var outer = new Panel { Height = bubbleH + 10, BackColor = Theme.Surface };
+
+        outer.Paint += (_, e) =>
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Drop shadow — two offset layers
+            using var sh1 = new SolidBrush(Color.FromArgb(38, 0, 0, 0));
+            using var sp1 = RoundRect(new Rectangle(2, 7, outer.Width - 5, bubbleH), radius);
+            g.FillPath(sh1, sp1);
+
+            using var sh2 = new SolidBrush(Color.FromArgb(20, 0, 0, 0));
+            using var sp2 = RoundRect(new Rectangle(1, 5, outer.Width - 3, bubbleH), radius);
+            g.FillPath(sh2, sp2);
+
+            // Bubble fill + border
+            var bubbleRect = new Rectangle(0, 2, outer.Width - 2, bubbleH);
+            using var path   = RoundRect(bubbleRect, radius);
+            using var fill   = new SolidBrush(Theme.InputBg);
+            using var border = new Pen(Theme.Border, 1f);
+            g.FillPath(fill, path);
+            g.DrawPath(border, path);
+        };
+
+        tb.BackColor = Theme.InputBg;
+        // Do NOT dock the textbox — manually centre it inside the bubble
+        tb.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+
+        void Layout()
+        {
+            if (outer.Width <= 24) return;
+            tb.Left  = 12;
+            tb.Width = outer.Width - 24;
+            tb.Top   = 2 + (bubbleH - tb.Height) / 2;
+        }
+
+        outer.SizeChanged += (_, _) => Layout();
+        outer.Controls.Add(tb);
+        Layout();
+        return outer;
+    }
+
+    // ── Combined host+port bubble with a thin divider ─────────────────
+
+    private static Panel MakeServerBubble(TextBox hostField, TextBox portField)
+    {
+        const int bubbleH = 36;
+        const int radius  = 10;
+        const int portW   = 76;
+
+        var outer = new Panel { Height = bubbleH + 10, BackColor = Theme.Surface };
+
+        outer.Paint += (_, e) =>
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using var sh1 = new SolidBrush(Color.FromArgb(38, 0, 0, 0));
+            using var sp1 = RoundRect(new Rectangle(2, 7, outer.Width - 5, bubbleH), radius);
+            g.FillPath(sh1, sp1);
+
+            using var sh2 = new SolidBrush(Color.FromArgb(20, 0, 0, 0));
+            using var sp2 = RoundRect(new Rectangle(1, 5, outer.Width - 3, bubbleH), radius);
+            g.FillPath(sh2, sp2);
+
+            var bubbleRect = new Rectangle(0, 2, outer.Width - 2, bubbleH);
+            using var path   = RoundRect(bubbleRect, radius);
+            using var fill   = new SolidBrush(Theme.InputBg);
+            using var border = new Pen(Theme.Border, 1f);
+            g.FillPath(fill, path);
+            g.DrawPath(border, path);
+
+            // Vertical divider between host and port sections
+            int divX = outer.Width - portW - 2;
+            using var divPen = new Pen(Theme.Border, 1f);
+            g.DrawLine(divPen, divX, 6, divX, bubbleH + 2);
+        };
+
+        hostField.BackColor = Theme.InputBg;
+        portField.BackColor = Theme.InputBg;
+        hostField.Anchor    = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+        portField.Anchor    = AnchorStyles.Right | AnchorStyles.Top;
+
+        void Layout()
+        {
+            if (outer.Width <= 24) return;
+            int divX = outer.Width - portW - 2;
+            int tbY  = 2 + (bubbleH - hostField.Height) / 2;
+
+            hostField.Left  = 12;
+            hostField.Width = divX - 18;
+            hostField.Top   = tbY;
+
+            portField.Left  = divX + 8;
+            portField.Width = portW - 16;
+            portField.Top   = tbY;
+        }
+
+        outer.SizeChanged += (_, _) => Layout();
+        outer.Controls.Add(hostField);
+        outer.Controls.Add(portField);
+        Layout();
+        return outer;
+    }
+
+    // ── Card background ───────────────────────────────────────────────
+
+    private static void PaintCard(object? sender, PaintEventArgs e)
     {
         if (sender is not Panel p) return;
-        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var r = new Rectangle(0, 0, p.Width - 1, p.Height - 1);
         using var path = RoundRect(r, 14);
         using var fill = new SolidBrush(Theme.Surface);
@@ -167,7 +274,10 @@ public sealed class LoginPanel : Panel
         e.Graphics.DrawPath(pen, path);
     }
 
-    private static Panel Wrap(Control c)
+    // ── Layout helpers ────────────────────────────────────────────────
+
+    /// Wrap a non-input control (label, etc.) in a transparent container.
+    private static Panel WrapLabel(Control c)
     {
         var w = new Panel { Height = c is Label l ? l.Height : 38, BackColor = Color.Transparent };
         c.Dock = DockStyle.Fill;
@@ -175,20 +285,20 @@ public sealed class LoginPanel : Panel
         return w;
     }
 
-    private static Panel Wrap(TextBox tb)
+    private static Panel Spacer(int h) => new() { Height = h, BackColor = Color.Transparent };
+
+    private static GraphicsPath RoundRect(Rectangle r, int radius)
     {
-        var w = new Panel
-        {
-            Height    = 38,
-            BackColor = Theme.InputBg,
-            Padding   = new Padding(10, 7, 10, 7)
-        };
-        tb.Dock = DockStyle.Fill;
-        w.Controls.Add(tb);
-        return w;
+        var p = new GraphicsPath();
+        p.AddArc(r.X,                  r.Y,                  radius * 2, radius * 2, 180, 90);
+        p.AddArc(r.Right - radius * 2, r.Y,                  radius * 2, radius * 2, 270, 90);
+        p.AddArc(r.Right - radius * 2, r.Bottom - radius * 2, radius * 2, radius * 2,  0, 90);
+        p.AddArc(r.X,                  r.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
+        p.CloseFigure();
+        return p;
     }
 
-    private static Panel Spacer(int h) => new() { Height = h, BackColor = Color.Transparent };
+    // ── Network handlers ──────────────────────────────────────────────
 
     private async Task HandleJoinAsync()
     {
@@ -258,16 +368,5 @@ public sealed class LoginPanel : Panel
         Exception e = ex;
         while (e.InnerException != null) e = e.InnerException;
         return e.Message ?? ex.GetType().Name;
-    }
-
-    private static System.Drawing.Drawing2D.GraphicsPath RoundRect(Rectangle r, int radius)
-    {
-        var p = new System.Drawing.Drawing2D.GraphicsPath();
-        p.AddArc(r.X,                  r.Y,                  radius * 2, radius * 2, 180, 90);
-        p.AddArc(r.Right - radius * 2, r.Y,                  radius * 2, radius * 2, 270, 90);
-        p.AddArc(r.Right - radius * 2, r.Bottom - radius * 2, radius * 2, radius * 2,  0, 90);
-        p.AddArc(r.X,                  r.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
-        p.CloseFigure();
-        return p;
     }
 }

@@ -2,22 +2,23 @@ namespace TempChat.UI;
 
 internal static class Theme
 {
-    // ── Color palette — Telegram-inspired dark blue-gray ─────────────
+    // ── Color palette — Telegram-inspired dark blue-gray + purple ────
     public static readonly Color Background  = Color.FromArgb(23,  33,  43);  // #17212b
     public static readonly Color ChatBg      = Color.FromArgb(31,  42,  54);  // #1f2a36
     public static readonly Color Surface     = Color.FromArgb(31,  42,  54);  // #1f2a36
     public static readonly Color Secondary   = Color.FromArgb(36,  47,  61);  // #242f3d
-    public static readonly Color OwnBubble   = Color.FromArgb(43,  82, 120);  // #2b5278
-    public static readonly Color OwnBubble2  = Color.FromArgb(43,  82, 120);  // kept for compat
+    public static readonly Color OwnBubble   = Color.FromArgb(65,  48, 120);  // muted purple
+    public static readonly Color OwnBubble2  = Color.FromArgb(65,  48, 120);  // compat
     public static readonly Color OtherBubble = Color.FromArgb(24,  37,  51);  // #182533
     public static readonly Color InputBg     = Color.FromArgb(36,  47,  61);  // #242f3d
     public static readonly Color HeaderBg    = Color.FromArgb(23,  33,  43);  // #17212b
     public static readonly Color Text        = Color.FromArgb(230, 235, 240); // #e6ebf0
     public static readonly Color SubText     = Color.FromArgb(154, 167, 178); // #9aa7b2
-    public static readonly Color Accent      = Color.FromArgb(46,  166, 255); // #2ea6ff
+    public static readonly Color Accent      = Color.FromArgb(46,  166, 255); // #2ea6ff  blue
     public static readonly Color AccentHover = Color.FromArgb(82,  185, 255); // lighter blue
     public static readonly Color AccentDark  = Color.FromArgb(26,  130, 210); // pressed blue
-    public static readonly Color Border      = Color.FromArgb(42,  57,  73);  // subtle divider
+    public static readonly Color Purple      = Color.FromArgb(168, 110, 240); // accent purple
+    public static readonly Color Border      = Color.FromArgb(42,   57,  73); // subtle divider
 
     // ── Typography ───────────────────────────────────────────────────
     public static readonly Font ChatFont   = new("Segoe UI", 10.5f);
@@ -30,7 +31,6 @@ internal static class Theme
 
     // ── Factory helpers ──────────────────────────────────────────────
 
-    /// Returns a styled RoundButton (replaces the old Button-based helper).
     public static RoundButton MakeButton(string text, bool primary = true)
         => new RoundButton(text, primary) { Height = 36 };
 
