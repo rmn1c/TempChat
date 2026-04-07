@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TempChat.Views.ChatView"
+             Background="#1f2a36">
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ── Header ──────────────────────────────────────────────────── -->
+    <Border Grid.Row="0"
+            Background="#17212b"
+            BorderThickness="0,0,0,1"
+            BorderBrush="#2a3949"
+            Padding="20,10,16,10">
+      <Grid ColumnDefinitions="*,Auto">
+
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock x:Name="RoomNameLabel"
+                     FontSize="13" FontWeight="Bold"
+                     Foreground="#e6ebf0"/>
+          <TextBlock x:Name="CodeLabel"
+                     FontSize="9" Foreground="#9aa7b2"
+                     Cursor="Hand"
+                     ToolTip.Tip="Click to copy room code"/>
+        </StackPanel>
+
+        <Button x:Name="LeaveBtn"
+                Grid.Column="1"
+                Content="Leave"
+                Theme="{StaticResource SecondaryBtn}"
+                Width="64" Height="28"
+                Padding="0"
+                VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+
+    <!-- ── Message area + floating scroll-down button ──────────────── -->
+    <Grid Grid.Row="1">
+      <ScrollViewer x:Name="MessageScroll"
+                    Background="#1f2a36"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="MessageStack"
+                    Spacing="2"
+                    Margin="0,12,0,12"/>
+      </ScrollViewer>
+
+      <!-- Floating scroll-to-bottom button -->
+      <Button x:Name="ScrollDownBtn"
+              IsVisible="False"
+              Theme="{StaticResource ScrollDownBtn}"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Bottom"
+              Margin="0,0,16,16"
+              ZIndex="10"/>
+    </Grid>
+
+    <!-- ── Input bar ────────────────────────────────────────────────── -->
+    <Border Grid.Row="2"
+            Background="#17212b"
+            BorderThickness="0,1,0,0"
+            BorderBrush="#2a3949"
+            Padding="14">
+      <Grid ColumnDefinitions="*,8,Auto">
+
+        <!-- Pill-shaped text-input wrapper -->
+        <Border Background="#242f3d"
+                CornerRadius="20"
+                ClipToBounds="True">
+          <TextBox x:Name="InputField"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Foreground="#e6ebf0"
+                   Watermark="Type a message…"
+                   Padding="16,0"
+                   Height="40"
+                   VerticalContentAlignment="Center"/>
+        </Border>
+
+        <Button x:Name="SendBtn"
+                Grid.Column="2"
+                Content="Send"
+                Theme="{StaticResource PrimaryBtn}"
+                Width="72" Height="40"
+                Padding="0"/>
+      </Grid>
+    </Border>
+
+  </Grid>
+</UserControl>

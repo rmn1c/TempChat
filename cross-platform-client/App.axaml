@@ -1,0 +1,103 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TempChat.App"
+             RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+  <Application.Resources>
+    <ResourceDictionary>
+
+      <!-- ── Primary button (blue, pill-shaped) ─────────────────────── -->
+      <ControlTheme x:Key="PrimaryBtn" TargetType="Button">
+        <Setter Property="Background"                Value="#2ea6ff"/>
+        <Setter Property="Foreground"                Value="#e6ebf0"/>
+        <Setter Property="BorderThickness"           Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment"  Value="Center"/>
+        <Setter Property="Cursor"                    Value="Hand"/>
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Name="root"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="20"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter Content="{TemplateBinding Content}"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover /template/ Border#root">
+          <Setter Property="Background" Value="#52b9ff"/>
+        </Style>
+        <Style Selector="^:pressed /template/ Border#root">
+          <Setter Property="Background" Value="#1a82d2"/>
+        </Style>
+        <Style Selector="^:disabled /template/ Border#root">
+          <Setter Property="Opacity" Value="0.5"/>
+        </Style>
+      </ControlTheme>
+
+      <!-- ── Secondary button (dark outline, pill-shaped) ──────────── -->
+      <ControlTheme x:Key="SecondaryBtn" TargetType="Button">
+        <Setter Property="Background"                Value="#242f3d"/>
+        <Setter Property="Foreground"                Value="#e6ebf0"/>
+        <Setter Property="BorderBrush"               Value="#2a3949"/>
+        <Setter Property="BorderThickness"           Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment"  Value="Center"/>
+        <Setter Property="Cursor"                    Value="Hand"/>
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Name="root"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="20"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter Content="{TemplateBinding Content}"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover /template/ Border#root">
+          <Setter Property="Background" Value="#2a3f52"/>
+        </Style>
+        <Style Selector="^:pressed /template/ Border#root">
+          <Setter Property="Background" Value="#1f2a36"/>
+        </Style>
+        <Style Selector="^:disabled /template/ Border#root">
+          <Setter Property="Opacity" Value="0.5"/>
+        </Style>
+      </ControlTheme>
+
+      <!-- ── Floating scroll-down button ───────────────────────────── -->
+      <ControlTheme x:Key="ScrollDownBtn" TargetType="Button">
+        <Setter Property="Background"      Value="#cc2a3949"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width"           Value="36"/>
+        <Setter Property="Height"          Value="36"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Name="root"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="18">
+              <TextBlock Text="↓"
+                         Foreground="#e6ebf0"
+                         FontSize="16"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"/>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover /template/ Border#root">
+          <Setter Property="Background" Value="#ee2a3949"/>
+        </Style>
+      </ControlTheme>
+
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

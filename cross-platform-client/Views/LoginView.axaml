@@ -1,0 +1,122 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TempChat.Views.LoginView"
+             Background="#17212b">
+  <Grid>
+    <!--
+      Centered card — fixed 380 px wide, vertically centered.
+      On very small windows the card scrolls rather than clipping.
+    -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <Border Width="380"
+              Background="#1f2a36"
+              CornerRadius="14"
+              BorderBrush="#2a3949"
+              BorderThickness="1"
+              Padding="32,28"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Margin="0,24">
+        <StackPanel Spacing="0">
+
+          <!-- Title -->
+          <TextBlock Text="TempChat"
+                     FontSize="26" FontWeight="Bold"
+                     Foreground="#a86ef0"
+                     TextAlignment="Center"
+                     Margin="0,0,0,6"/>
+
+          <TextBlock Text="Private · Encrypted · Ephemeral"
+                     FontSize="9" Foreground="#9aa7b2"
+                     TextAlignment="Center"
+                     Margin="0,0,0,20"/>
+
+          <!-- Server row (host | port) -->
+          <Border Background="#242f3d" CornerRadius="10" Height="42"
+                  Margin="0,0,0,8" ClipToBounds="True">
+            <Grid ColumnDefinitions="*,1,84">
+              <TextBox x:Name="HostField"
+                       Background="Transparent" BorderThickness="0"
+                       Foreground="#e6ebf0" Watermark="Server IP"
+                       Padding="12,0" VerticalContentAlignment="Center"/>
+              <Border Grid.Column="1" Background="#2a3949"/>
+              <TextBox x:Name="PortField"
+                       Grid.Column="2"
+                       Background="Transparent" BorderThickness="0"
+                       Foreground="#e6ebf0" Watermark="Port"
+                       Padding="8,0" VerticalContentAlignment="Center"/>
+            </Grid>
+          </Border>
+
+          <!-- Username -->
+          <Border Background="#242f3d" CornerRadius="10" Height="42"
+                  Margin="0,0,0,8" ClipToBounds="True">
+            <TextBox x:Name="UsernameField"
+                     Background="Transparent" BorderThickness="0"
+                     Foreground="#e6ebf0" Watermark="Username"
+                     Padding="12,0" VerticalContentAlignment="Center"/>
+          </Border>
+
+          <!-- Room password -->
+          <Border Background="#242f3d" CornerRadius="10" Height="42"
+                  Margin="0,0,0,4" ClipToBounds="True">
+            <TextBox x:Name="PasswordField"
+                     Background="Transparent" BorderThickness="0"
+                     Foreground="#e6ebf0"
+                     Watermark="Room password (leave blank to disable encryption)"
+                     PasswordChar="•"
+                     Padding="12,0" VerticalContentAlignment="Center"/>
+          </Border>
+
+          <TextBlock Text="Room password enables end-to-end encryption"
+                     FontSize="8.5" FontStyle="Italic" Foreground="#9aa7b2"
+                     TextAlignment="Center" Margin="0,0,0,14"/>
+
+          <!-- Separator -->
+          <TextBlock Text="────────── or ──────────"
+                     FontSize="9" Foreground="#9aa7b2"
+                     TextAlignment="Center" Margin="0,0,0,10"/>
+
+          <!-- Room code (join existing) -->
+          <Border Background="#242f3d" CornerRadius="10" Height="42"
+                  Margin="0,0,0,8" ClipToBounds="True">
+            <TextBox x:Name="RoomCodeField"
+                     Background="Transparent" BorderThickness="0"
+                     Foreground="#e6ebf0" Watermark="Room code (6 characters)"
+                     Padding="12,0" VerticalContentAlignment="Center"/>
+          </Border>
+
+          <!-- New room name (create) -->
+          <Border Background="#242f3d" CornerRadius="10" Height="42"
+                  Margin="0,0,0,16" ClipToBounds="True">
+            <TextBox x:Name="NewRoomNameField"
+                     Background="Transparent" BorderThickness="0"
+                     Foreground="#e6ebf0" Watermark="New room name"
+                     Padding="12,0" VerticalContentAlignment="Center"/>
+          </Border>
+
+          <!-- Buttons -->
+          <Button x:Name="JoinBtn"
+                  Content="Join Room"
+                  Theme="{StaticResource PrimaryBtn}"
+                  HorizontalAlignment="Stretch"
+                  Height="38" Margin="0,0,0,8"/>
+
+          <Button x:Name="CreateBtn"
+                  Content="Create Room"
+                  Theme="{StaticResource SecondaryBtn}"
+                  HorizontalAlignment="Stretch"
+                  Height="38" Margin="0,0,0,12"/>
+
+          <!-- Status / error message -->
+          <TextBlock x:Name="StatusLabel"
+                     Text=" " FontSize="9"
+                     Foreground="#dc5050"
+                     TextAlignment="Center"/>
+
+        </StackPanel>
+      </Border>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

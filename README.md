@@ -6,8 +6,9 @@ A temporary chat application with a Java Spring Boot server and a C# WinForms de
 
 ```
 tempchat/
-├── chat-server/        # Spring Boot + PostgreSQL backend
-└── chat-client-c/      # C# (.NET 8) WinForms desktop client
+├── chat-server/              # Spring Boot + PostgreSQL backend
+├── chat-client-c/            # C# (.NET 8) WinForms client — Windows only
+└── cross-platform-client/    # C# (.NET 8) Avalonia client — Windows, Linux, macOS
 ```
 
 ## Features
@@ -31,12 +32,19 @@ tempchat/
 | Maven | 3.9+ | |
 | Docker | any | For the bundled PostgreSQL |
 
-### Client (C# WinForms)
+### Client — Windows only (`chat-client-c`)
 
 | Tool | Version | Notes |
 |------|---------|-------|
 | .NET SDK | 8.0+ | [Download](https://dotnet.microsoft.com/download) |
 | Windows | any | WinForms targets `net8.0-windows` — Windows only |
+
+### Client — Cross-platform (`cross-platform-client`)
+
+| Tool | Version | Notes |
+|------|---------|-------|
+| .NET SDK | 8.0+ | [Download](https://dotnet.microsoft.com/download) |
+| OS | any | Windows, Linux, macOS (x64 and arm64) |
 
 ---
 
@@ -59,18 +67,18 @@ The server listens on `http://localhost:8080` by default.
 
 ---
 
-## Building the C# Client
+## Building the Client
 
-The client is a standard .NET 8 WinForms project located in `chat-client-c/`.
+### Windows-only WinForms client (`chat-client-c`)
 
-### Run directly (dev mode)
+#### Run directly (dev mode)
 
 ```bash
 cd chat-client-c
 dotnet run
 ```
 
-### Build a release executable
+#### Build a release executable
 
 ```bash
 cd chat-client-c
@@ -79,9 +87,40 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 Output: `chat-client-c/bin/Release/net8.0-windows/win-x64/publish/TempChat.exe`
 
-The published executable is self-contained — it bundles the .NET runtime so no .NET install is required on end-user machines.
+---
 
-To target 32-bit Windows replace `win-x64` with `win-x86`.
+### Cross-platform Avalonia client (`cross-platform-client`)
+
+Built with [Avalonia UI](https://avaloniaui.net/) — runs natively on Windows, Linux, and macOS.
+
+#### Run directly (dev mode)
+
+```bash
+cd cross-platform-client
+dotnet run
+```
+
+#### Build a self-contained single-file executable
+
+Replace `<RID>` with the target platform runtime identifier:
+
+| Platform | RID |
+|----------|-----|
+| Windows x64 | `win-x64` |
+| Windows arm64 | `win-arm64` |
+| Linux x64 | `linux-x64` |
+| Linux arm64 | `linux-arm64` |
+| macOS x64 (Intel) | `osx-x64` |
+| macOS arm64 (Apple Silicon) | `osx-arm64` |
+
+```bash
+cd cross-platform-client
+dotnet publish -c Release -r <RID> --self-contained true -p:PublishSingleFile=true
+```
+
+Output: `cross-platform-client/bin/Release/net8.0/<RID>/publish/TempChat[.exe]`
+
+The published binary bundles the .NET runtime — no .NET install needed on the target machine.
 
 ---
 
