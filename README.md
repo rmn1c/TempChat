@@ -1,6 +1,6 @@
 # TempChat
 
-A temporary chat application with a Java Spring Boot server and a C# WinForms desktop client. Chat rooms are ephemeral — messages are automatically deleted after 24 hours and rooms are cleaned up when empty.
+A temporary chat application with a Java Spring Boot server and two C# desktop clients: a Windows-only WinForms client and a cross-platform Avalonia client that runs on Windows, Linux, and macOS. Chat rooms are ephemeral — messages are automatically deleted after 24 hours and rooms are cleaned up when empty.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ tempchat/
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Java JDK | 21+ | Must include `jpackage` (standard since JDK 14) |
+| Java JDK | 21+ | |
 | Maven | 3.9+ | |
 | Docker | any | For the bundled PostgreSQL |
 
