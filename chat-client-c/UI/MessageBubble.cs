@@ -18,6 +18,7 @@ internal sealed class MessageBubble : Control
     private int  _bubbleW;
     private int  _textW;
     private int  _singleLineH;
+    private int  _textHeight;   // measured pixel height of content text
     private bool _isSingleLine;
 
     private const int HorizPad    = 14;
@@ -56,21 +57,39 @@ internal sealed class MessageBubble : Control
 
         int senderH = _isOwn ? 0 : 18;
 
-        // Measure single-line height once using a tall reference string
+        // Measure single-line height using a reference string
         _singleLineH = TextRenderer.MeasureText("Tg", Theme.ChatFont,
             new Size(9999, 200), TextFormatFlags.NoPrefix).Height;
 
-        // Measure actual text — if it fits on one line, display time inline
-        var textSize = TextRenderer.MeasureText(
+        // Single-line detection must use the REDUCED width (full width minus the
+        // space the inline timestamp will occupy).  Using full _textW here was the
+        // bug: a message that filled ~90 % of the bubble was classified as
+        // single-line, then rendered in a narrower rect without WordBreak → clipped.
+        int textWidthForSingleLineTest = _textW - InlineTimeW;
+        var singleTest = TextRenderer.MeasureText(
             _content, Theme.ChatFont,
-            new Size(_textW, int.MaxValue),
+            new Size(textWidthForSingleLineTest, 32000),
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
-        _isSingleLine = textSize.Height <= _singleLineH + 2;
+        _isSingleLine = singleTest.Height <= _singleLineH + 2;
+
+        // For multi-line height, always measure at full _textW
+        if (_isSingleLine)
+        {
+            _textHeight = _singleLineH;
+        }
+        else
+        {
+            var full = TextRenderer.MeasureText(
+                _content, Theme.ChatFont,
+                new Size(_textW, 32000),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            _textHeight = full.Height;
+        }
 
         int contentH = _isSingleLine
-            ? _singleLineH                          // time sits on the same row
-            : textSize.Height + 4 + 14;            // text + gap + time row below
+            ? _singleLineH             // timestamp inline on the same row
+            : _textHeight + 4 + 14;   // text + gap + timestamp row below
 
         Height = VertPad + senderH + contentH + VertPad + RowMargin;
         Invalidate();
@@ -128,10 +147,10 @@ internal sealed class MessageBubble : Control
         }
         else
         {
-            // Multi-line: text full width, timestamp below on its own row
-            int textMaxH = Height - ty - 14 - VertPad - RowMargin;
+            // Multi-line: text full width, timestamp below on its own row.
+            // Use the cached measured height directly — no algebra that could drift.
             TextRenderer.DrawText(g, _content, Theme.ChatFont,
-                new Rectangle(tx, ty, _textW, textMaxH),
+                new Rectangle(tx, ty, _textW, _textHeight),
                 Theme.Text,
                 TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
