@@ -7,15 +7,15 @@ public sealed class LoginPanel : Panel
     public delegate void JoinCallback(string serverUrl, string roomCode, string username,
                                       string roomName, string roomPassword);
 
-    private readonly TextBox _hostField;
-    private readonly TextBox _portField;
-    private readonly TextBox _usernameField;
-    private readonly TextBox _roomPasswordField;
-    private readonly TextBox _roomCodeField;
-    private readonly TextBox _newRoomNameField;
-    private readonly Button  _joinBtn;
-    private readonly Button  _createBtn;
-    private readonly Label   _statusLabel;
+    private readonly TextBox     _hostField;
+    private readonly TextBox     _portField;
+    private readonly TextBox     _usernameField;
+    private readonly TextBox     _roomPasswordField;
+    private readonly TextBox     _roomCodeField;
+    private readonly TextBox     _newRoomNameField;
+    private readonly RoundButton _joinBtn;
+    private readonly RoundButton _createBtn;
+    private readonly Label       _statusLabel;
     private readonly JoinCallback _callback;
 
     public LoginPanel(string defaultHost, string defaultPort, JoinCallback callback)
@@ -24,7 +24,7 @@ public sealed class LoginPanel : Panel
         BackColor = Theme.Background;
         Padding   = new Padding(0);
 
-        // ── Centered container ────────────────────────────────────
+        // ── Centered card ─────────────────────────────────────────────
         var center = new Panel
         {
             Width     = 380,
@@ -33,7 +33,7 @@ public sealed class LoginPanel : Panel
         };
         center.Paint += PaintRoundedPanel;
 
-        // ── Title ─────────────────────────────────────────────────
+        // ── Title ─────────────────────────────────────────────────────
         var title = new Label
         {
             Text      = "TempChat",
@@ -54,14 +54,14 @@ public sealed class LoginPanel : Panel
             TextAlign = ContentAlignment.TopCenter
         };
 
-        // ── Fields ────────────────────────────────────────────────
-        _hostField         = Theme.MakeTextBox();
-        _hostField.Text    = defaultHost;
-        _hostField.ForeColor = Theme.Text;
+        // ── Fields ────────────────────────────────────────────────────
+        _hostField            = Theme.MakeTextBox();
+        _hostField.Text       = defaultHost;
+        _hostField.ForeColor  = Theme.Text;
 
-        _portField         = Theme.MakeTextBox();
-        _portField.Text    = defaultPort;
-        _portField.ForeColor = Theme.Text;
+        _portField            = Theme.MakeTextBox();
+        _portField.Text       = defaultPort;
+        _portField.ForeColor  = Theme.Text;
 
         _usernameField     = Theme.MakeTextBox("Username");
         _roomPasswordField = Theme.MakeTextBox("Room password (for encryption)", password: true);
@@ -70,7 +70,7 @@ public sealed class LoginPanel : Panel
 
         // Host + Port on same row
         var serverRow = new Panel { Dock = DockStyle.Top, Height = 38, Margin = new Padding(0, 0, 0, 6) };
-        var hostWrap  = new Panel { Dock = DockStyle.Fill, BackColor = Theme.InputBg, Padding = new Padding(10, 7, 6, 7) };
+        var hostWrap  = new Panel { Dock = DockStyle.Fill,  BackColor = Theme.InputBg, Padding = new Padding(10, 7, 6, 7) };
         var portWrap  = new Panel { Dock = DockStyle.Right, Width = 80, BackColor = Theme.InputBg, Padding = new Padding(6, 7, 10, 7) };
         _hostField.Dock = DockStyle.Fill;
         _portField.Dock = DockStyle.Fill;
@@ -92,10 +92,9 @@ public sealed class LoginPanel : Panel
             TextAlign = ContentAlignment.MiddleCenter
         };
 
-        // Separator label
         var sepLabel = new Label
         {
-            Text      = "──────────── or ────────────",
+            Text      = "────────── or ──────────",
             ForeColor = Theme.SubText,
             Font      = Theme.SubFont,
             Dock      = DockStyle.Top,
@@ -105,7 +104,7 @@ public sealed class LoginPanel : Panel
 
         var hint = new Label
         {
-            Text      = "🔒  Room Password is used for end-to-end encryption",
+            Text      = "Room password enables end-to-end encryption",
             Font      = new Font("Segoe UI", 8.5f, FontStyle.Italic),
             ForeColor = Theme.SubText,
             Dock      = DockStyle.Top,
@@ -113,7 +112,7 @@ public sealed class LoginPanel : Panel
             TextAlign = ContentAlignment.MiddleCenter
         };
 
-        // Build form top-to-bottom (added in reverse because Dock=Top stacks)
+        // Build top-to-bottom (added in reverse because Dock=Top stacks upward)
         var form = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Surface };
         var controls = new Control[]
         {
@@ -137,11 +136,10 @@ public sealed class LoginPanel : Panel
             Spacer(4),
         };
         foreach (var c in controls) { c.Dock = DockStyle.Top; form.Controls.Add(c); }
-        form.Controls.SetChildIndex(controls[^1], 0); // title first visually
+        form.Controls.SetChildIndex(controls[^1], 0);
 
         center.Controls.Add(form);
 
-        // Center the panel inside this panel
         Resize += (_, _) => PositionCenter(center);
         Controls.Add(center);
         PositionCenter(center);
@@ -152,7 +150,7 @@ public sealed class LoginPanel : Panel
 
     private void PositionCenter(Panel center)
     {
-        center.Height = Height - 60;
+        center.Height = Math.Min(Height - 60, 620);
         center.Left   = (Width  - center.Width)  / 2;
         center.Top    = (Height - center.Height) / 2;
     }
@@ -162,7 +160,7 @@ public sealed class LoginPanel : Panel
         if (sender is not Panel p) return;
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         var r = new Rectangle(0, 0, p.Width - 1, p.Height - 1);
-        using var path = RoundRect(r, 16);
+        using var path = RoundRect(r, 14);
         using var fill = new SolidBrush(Theme.Surface);
         e.Graphics.FillPath(fill, path);
         using var pen = new Pen(Theme.Border, 1);
@@ -242,15 +240,15 @@ public sealed class LoginPanel : Panel
 
     private void SetBusy(bool busy, string status)
     {
-        _joinBtn.Enabled            = !busy;
-        _createBtn.Enabled          = !busy;
-        _hostField.Enabled          = !busy;
-        _portField.Enabled          = !busy;
-        _usernameField.Enabled      = !busy;
-        _roomPasswordField.Enabled  = !busy;
-        _roomCodeField.Enabled      = !busy;
-        _newRoomNameField.Enabled   = !busy;
-        _statusLabel.Text           = status;
+        _joinBtn.Enabled           = !busy;
+        _createBtn.Enabled         = !busy;
+        _hostField.Enabled         = !busy;
+        _portField.Enabled         = !busy;
+        _usernameField.Enabled     = !busy;
+        _roomPasswordField.Enabled = !busy;
+        _roomCodeField.Enabled     = !busy;
+        _newRoomNameField.Enabled  = !busy;
+        _statusLabel.Text          = status;
     }
 
     private void SetStatus(string msg) => _statusLabel.Text = msg;
@@ -265,10 +263,10 @@ public sealed class LoginPanel : Panel
     private static System.Drawing.Drawing2D.GraphicsPath RoundRect(Rectangle r, int radius)
     {
         var p = new System.Drawing.Drawing2D.GraphicsPath();
-        p.AddArc(r.X,               r.Y,               radius * 2, radius * 2, 180, 90);
-        p.AddArc(r.Right - radius * 2, r.Y,             radius * 2, radius * 2, 270, 90);
-        p.AddArc(r.Right - radius * 2, r.Bottom - radius * 2, radius * 2, radius * 2, 0, 90);
-        p.AddArc(r.X,               r.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
+        p.AddArc(r.X,                  r.Y,                  radius * 2, radius * 2, 180, 90);
+        p.AddArc(r.Right - radius * 2, r.Y,                  radius * 2, radius * 2, 270, 90);
+        p.AddArc(r.Right - radius * 2, r.Bottom - radius * 2, radius * 2, radius * 2,  0, 90);
+        p.AddArc(r.X,                  r.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
         p.CloseFigure();
         return p;
     }

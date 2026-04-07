@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using TempChat.Services;
 
 namespace TempChat.UI;
 
@@ -18,14 +19,16 @@ public sealed class MainForm : Form
     public MainForm()
     {
         Text          = "TempChat";
-        MinimumSize   = new Size(500, 660);
-        Size          = new Size(520, 720);
+        MinimumSize   = new Size(780, 560);
+        Size          = new Size(900, 680);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor     = Theme.Background;
 
         _loginPanel      = new LoginPanel(DefaultHost, DefaultPort, OnJoin);
         _loginPanel.Dock = DockStyle.Fill;
         Controls.Add(_loginPanel);
+
+        ToastService.Init(this);
     }
 
     protected override void OnHandleCreated(EventArgs e)

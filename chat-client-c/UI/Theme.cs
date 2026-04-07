@@ -2,60 +2,49 @@ namespace TempChat.UI;
 
 internal static class Theme
 {
-    public static readonly Color Background  = Color.FromArgb(15,  15,  30);
-    public static readonly Color ChatBg      = Color.FromArgb(17,  17,  34);
-    public static readonly Color Surface     = Color.FromArgb(24,  26,  50);
-    public static readonly Color OwnBubble   = Color.FromArgb(76,  39, 130);
-    public static readonly Color OwnBubble2  = Color.FromArgb(108, 60, 168);
-    public static readonly Color OtherBubble = Color.FromArgb(36,  40,  72);
-    public static readonly Color InputBg     = Color.FromArgb(26,  28,  54);
-    public static readonly Color HeaderBg    = Color.FromArgb(20,  22,  44);
-    public static readonly Color Text        = Color.FromArgb(232, 232, 245);
-    public static readonly Color SubText     = Color.FromArgb(145, 145, 185);
-    public static readonly Color Accent      = Color.FromArgb(148,  82, 218);
-    public static readonly Color AccentHover = Color.FromArgb(170, 105, 240);
-    public static readonly Color AccentDark  = Color.FromArgb(100,  50, 160);
-    public static readonly Color Border      = Color.FromArgb(48,  50,  88);
+    // ── Color palette — Telegram-inspired dark blue-gray ─────────────
+    public static readonly Color Background  = Color.FromArgb(23,  33,  43);  // #17212b
+    public static readonly Color ChatBg      = Color.FromArgb(31,  42,  54);  // #1f2a36
+    public static readonly Color Surface     = Color.FromArgb(31,  42,  54);  // #1f2a36
+    public static readonly Color Secondary   = Color.FromArgb(36,  47,  61);  // #242f3d
+    public static readonly Color OwnBubble   = Color.FromArgb(43,  82, 120);  // #2b5278
+    public static readonly Color OwnBubble2  = Color.FromArgb(43,  82, 120);  // kept for compat
+    public static readonly Color OtherBubble = Color.FromArgb(24,  37,  51);  // #182533
+    public static readonly Color InputBg     = Color.FromArgb(36,  47,  61);  // #242f3d
+    public static readonly Color HeaderBg    = Color.FromArgb(23,  33,  43);  // #17212b
+    public static readonly Color Text        = Color.FromArgb(230, 235, 240); // #e6ebf0
+    public static readonly Color SubText     = Color.FromArgb(154, 167, 178); // #9aa7b2
+    public static readonly Color Accent      = Color.FromArgb(46,  166, 255); // #2ea6ff
+    public static readonly Color AccentHover = Color.FromArgb(82,  185, 255); // lighter blue
+    public static readonly Color AccentDark  = Color.FromArgb(26,  130, 210); // pressed blue
+    public static readonly Color Border      = Color.FromArgb(42,  57,  73);  // subtle divider
 
-    public static readonly Font ChatFont   = new("Segoe UI",  10.5f);
-    public static readonly Font TimeFont   = new("Segoe UI",   8.0f);
-    public static readonly Font SenderFont = new("Segoe UI",   8.5f, FontStyle.Bold);
-    public static readonly Font UiFont     = new("Segoe UI",  10.0f);
-    public static readonly Font TitleFont  = new("Segoe UI",  22.0f, FontStyle.Bold);
-    public static readonly Font HeaderFont = new("Segoe UI",  11.0f, FontStyle.Bold);
-    public static readonly Font SubFont    = new("Segoe UI",   9.0f);
+    // ── Typography ───────────────────────────────────────────────────
+    public static readonly Font ChatFont   = new("Segoe UI", 10.5f);
+    public static readonly Font TimeFont   = new("Segoe UI",  8.0f);
+    public static readonly Font SenderFont = new("Segoe UI",  8.5f, FontStyle.Bold);
+    public static readonly Font UiFont     = new("Segoe UI", 10.0f);
+    public static readonly Font TitleFont  = new("Segoe UI", 22.0f, FontStyle.Bold);
+    public static readonly Font HeaderFont = new("Segoe UI", 11.0f, FontStyle.Bold);
+    public static readonly Font SubFont    = new("Segoe UI",  9.0f);
 
-    public static Button MakeButton(string text, bool primary = true)
-    {
-        var b = new Button
-        {
-            Text      = text,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = primary ? Accent : Surface,
-            ForeColor = Text,
-            Font      = UiFont,
-            Cursor    = Cursors.Hand,
-            Height    = 36
-        };
-        b.FlatAppearance.BorderColor    = primary ? AccentHover : Border;
-        b.FlatAppearance.BorderSize     = 1;
-        b.FlatAppearance.MouseOverBackColor  = primary ? AccentHover : Color.FromArgb(40, 44, 75);
-        b.FlatAppearance.MouseDownBackColor  = primary ? AccentDark  : Color.FromArgb(30, 33, 60);
-        return b;
-    }
+    // ── Factory helpers ──────────────────────────────────────────────
+
+    /// Returns a styled RoundButton (replaces the old Button-based helper).
+    public static RoundButton MakeButton(string text, bool primary = true)
+        => new RoundButton(text, primary) { Height = 36 };
 
     public static TextBox MakeTextBox(string placeholder = "", bool password = false)
     {
         var tb = new TextBox
         {
-            BackColor            = InputBg,
-            ForeColor            = Text,
-            BorderStyle          = BorderStyle.None,
-            Font                 = UiFont,
+            BackColor             = InputBg,
+            ForeColor             = Text,
+            BorderStyle           = BorderStyle.None,
+            Font                  = UiFont,
             UseSystemPasswordChar = password,
-            Height               = 22
+            Height                = 22
         };
-        // Placeholder hint via tag + events
         if (!string.IsNullOrEmpty(placeholder))
         {
             tb.Tag = placeholder;

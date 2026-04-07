@@ -1,26 +1,24 @@
+using System.Drawing.Drawing2D;
 using TempChat.Services;
 
 namespace TempChat.UI;
 
 public sealed class ChatPanel : Panel, IDisposable
 {
-    // Stored so we can relayout on resize
     private record Msg(string Sender, string Content, string Time, bool IsOwn);
 
-    private readonly string        _serverUrl;
-    private readonly string        _roomCode;
-    private readonly string        _username;
-    private readonly Action        _onLeave;
+    private readonly string         _serverUrl;
+    private readonly string         _roomCode;
+    private readonly string         _username;
+    private readonly Action         _onLeave;
     private readonly CryptoService? _crypto;
 
     private readonly Panel   _scrollPanel;
     private readonly TextBox _inputField;
-    private readonly Button  _sendBtn;
-    private readonly Button  _leaveBtn;
 
-    private readonly List<Msg> _stored  = new();
-    private int                _nextTop = 10;
-    private StompClient?       _stomp;
+    private readonly List<(Msg msg, MessageBubble bubble)> _rows = new();
+    private int          _nextTop = 12;
+    private StompClient? _stomp;
 
     public ChatPanel(string serverUrl, string roomCode, string username,
                      string roomName, string roomPassword, Action onLeave)
@@ -34,153 +32,195 @@ public sealed class ChatPanel : Panel, IDisposable
         if (!string.IsNullOrEmpty(roomPassword))
             try { _crypto = new CryptoService(roomPassword, roomCode); } catch { }
 
-        // ── Header ────────────────────────────────────────────────
-        string enc = _crypto != null ? "  🔒" : "  ⚠";
+        // ── Header ────────────────────────────────────────────────────
+        string encBadge = _crypto != null ? " 🔒" : "";
         var header = new Panel
         {
             Dock      = DockStyle.Top,
-            Height    = 52,
+            Height    = 60,
             BackColor = Theme.HeaderBg,
-            Padding   = new Padding(16, 0, 12, 0)
+            Padding   = new Padding(20, 0, 14, 0)
         };
-        // subtle bottom border
+        // Bottom separator line
         header.Paint += (_, e) =>
         {
             using var pen = new Pen(Theme.Border, 1);
             e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
         };
 
-        var roomLabel = new Label
+        var leaveBtn = new RoundButton("Leave", primary: false)
         {
-            Text      = roomName + enc,
+            Dock  = DockStyle.Right,
+            Width = 72
+        };
+        // Vertically center leaveBtn within the header
+        header.SizeChanged += (_, _) =>
+            leaveBtn.Top = (header.Height - leaveBtn.Height) / 2;
+
+        var roomLbl = new Label
+        {
+            Text      = roomName + encBadge,
             Font      = Theme.HeaderFont,
             ForeColor = Theme.Text,
-            AutoSize  = false,
-            Dock      = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-        var codeLabel = new Label
-        {
-            Text      = "Code: " + roomCode + "   You: " + username,
-            Font      = Theme.SubFont,
-            ForeColor = Theme.SubText,
-            AutoSize  = false,
-            Dock      = DockStyle.Bottom,
-            Height    = 18,
+            Dock      = DockStyle.Top,
+            Height    = 30,
             TextAlign = ContentAlignment.BottomLeft
         };
-        header.Controls.Add(roomLabel);
-        header.Controls.Add(codeLabel);
 
-        _leaveBtn = Theme.MakeButton("Leave", primary: false);
-        _leaveBtn.Dock   = DockStyle.Right;
-        _leaveBtn.Width  = 72;
-        _leaveBtn.Margin = new Padding(0, 8, 0, 8);
-        header.Controls.Add(_leaveBtn);
+        var codeLbl = new Label
+        {
+            Text      = $"Code: {roomCode}  ·  {username}",
+            Font      = Theme.SubFont,
+            ForeColor = Theme.SubText,
+            Dock      = DockStyle.Bottom,
+            Height    = 18,
+            TextAlign = ContentAlignment.TopLeft,
+            Cursor    = Cursors.Hand
+        };
+        codeLbl.Click += (_, _) =>
+        {
+            Clipboard.SetText(roomCode);
+            string orig      = codeLbl.Text;
+            Color  origColor = codeLbl.ForeColor;
+            codeLbl.Text      = "✓  Code copied!";
+            codeLbl.ForeColor = Theme.Accent;
+            var timer = new System.Windows.Forms.Timer { Interval = 1800 };
+            timer.Tick += (_, _) =>
+            {
+                codeLbl.Text      = orig;
+                codeLbl.ForeColor = origColor;
+                timer.Stop(); timer.Dispose();
+            };
+            timer.Start();
+        };
 
-        // ── Scroll area ───────────────────────────────────────────
+        header.Controls.Add(roomLbl);
+        header.Controls.Add(codeLbl);
+        header.Controls.Add(leaveBtn);
+
+        // ── Scroll panel ──────────────────────────────────────────────
         _scrollPanel = new DoubleBufferedPanel
         {
             Dock       = DockStyle.Fill,
             BackColor  = Theme.ChatBg,
-            AutoScroll = true
+            AutoScroll = true,
+            Padding    = new Padding(0, 4, 0, 4)
         };
         _scrollPanel.Resize += (_, _) => Relayout();
 
-        // ── Input bar ─────────────────────────────────────────────
+        // ── Input bar ─────────────────────────────────────────────────
         var inputBar = new Panel
         {
             Dock      = DockStyle.Bottom,
-            Height    = 58,
+            Height    = 66,
             BackColor = Theme.HeaderBg,
-            Padding   = new Padding(12, 10, 12, 10)
+            Padding   = new Padding(14, 12, 14, 12)
         };
+        // Top separator line
         inputBar.Paint += (_, e) =>
         {
             using var pen = new Pen(Theme.Border, 1);
             e.Graphics.DrawLine(pen, 0, 0, inputBar.Width, 0);
         };
 
-        _inputField = Theme.MakeTextBox("Type a message…");
-        _inputField.Dock = DockStyle.Fill;
-
-        var inputWrapper = new Panel
+        // Input field wrapper — rounded pill
+        var inputWrap = new Panel
         {
             Dock      = DockStyle.Fill,
-            BackColor = Theme.InputBg,
-            Padding   = new Padding(10, 0, 10, 0)
+            BackColor = Theme.InputBg
         };
-        // Rounded visual via Paint
-        inputWrapper.Paint += (_, e) =>
+        inputWrap.Paint += (_, e) =>
         {
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            var r = new Rectangle(0, 0, inputWrapper.Width - 1, inputWrapper.Height - 1);
-            using var path = RoundRect(r, 20);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var r = new Rectangle(0, 0, inputWrap.Width - 1, inputWrap.Height - 1);
+            using var path = Pill(r);
             using var fill = new SolidBrush(Theme.InputBg);
             e.Graphics.FillPath(fill, path);
-            using var pen = new Pen(Theme.Border, 1);
-            e.Graphics.DrawPath(pen, path);
+            using var border = new Pen(Theme.Border, 1);
+            e.Graphics.DrawPath(border, path);
         };
-        _inputField.Dock = DockStyle.Fill;
-        inputWrapper.Controls.Add(_inputField);
 
-        _sendBtn = Theme.MakeButton("Send");
-        _sendBtn.Dock  = DockStyle.Right;
-        _sendBtn.Width = 72;
+        _inputField = new TextBox
+        {
+            BorderStyle = BorderStyle.None,
+            BackColor   = Theme.InputBg,
+            ForeColor   = Theme.SubText,
+            Font        = Theme.ChatFont,
+            Text        = "Type a message…",
+            Anchor      = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+        };
+        inputWrap.SizeChanged += (_, _) =>
+        {
+            _inputField.Left  = 16;
+            _inputField.Width = inputWrap.Width - 32;
+            _inputField.Top   = (inputWrap.Height - _inputField.Height) / 2;
+        };
+        _inputField.GotFocus += (_, _) =>
+        {
+            if (_inputField.Text == "Type a message…")
+            { _inputField.Text = ""; _inputField.ForeColor = Theme.Text; }
+        };
+        _inputField.LostFocus += (_, _) =>
+        {
+            if (string.IsNullOrEmpty(_inputField.Text))
+            { _inputField.Text = "Type a message…"; _inputField.ForeColor = Theme.SubText; }
+        };
+        inputWrap.Controls.Add(_inputField);
 
-        inputBar.Controls.Add(inputWrapper);
-        inputBar.Controls.Add(_sendBtn);
+        var sendBtn = new RoundButton("Send")
+        {
+            Dock  = DockStyle.Right,
+            Width = 70
+        };
 
-        // ── Wire up ──────────────────────────────────────────────
+        inputBar.Controls.Add(inputWrap);
+        inputBar.Controls.Add(sendBtn);
+
+        // ── Assemble ──────────────────────────────────────────────────
         Controls.Add(_scrollPanel);
         Controls.Add(inputBar);
         Controls.Add(header);
 
-        _sendBtn.Click      += async (_, _) => await SendAsync();
-        _leaveBtn.Click     += async (_, _) => await LeaveAsync();
+        sendBtn.Click      += async (_, _) => await SendAsync();
+        leaveBtn.Click     += async (_, _) => await LeaveAsync();
         _inputField.KeyDown += async (_, e) =>
         {
-            if (e.KeyCode == Keys.Enter)
-            {
-                e.SuppressKeyPress = true;
-                await SendAsync();
-            }
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SendAsync(); }
         };
 
         _ = LoadAndConnectAsync();
     }
 
-    // ── Message handling ─────────────────────────────────────────
+    // ── Messages ──────────────────────────────────────────────────────
 
     private void AddMessage(string sender, string content, string time,
                             bool isOwn, bool animate)
     {
-        _stored.Add(new Msg(sender, content, time, isOwn));
-        PlaceBubble(new Msg(sender, content, time, isOwn), animate);
-        ScrollToBottom();
-    }
-
-    private void PlaceBubble(Msg msg, bool animate)
-    {
-        var bubble = new MessageBubble(
-            msg.Sender, msg.Content, msg.Time, msg.IsOwn,
-            _scrollPanel.ClientSize.Width);
-
+        var msg    = new Msg(sender, content, time, isOwn);
+        var bubble = new MessageBubble(sender, content, time, isOwn,
+                                       _scrollPanel.ClientSize.Width);
         bubble.Top  = _nextTop;
-        _nextTop   += bubble.Height + 6;
+        _nextTop   += bubble.Height;
 
-        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 10);
+        _rows.Add((msg, bubble));
+        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 12);
         _scrollPanel.Controls.Add(bubble);
 
         if (animate) bubble.AnimateIn();
+        ScrollToBottom();
     }
 
     private void Relayout()
     {
         _scrollPanel.SuspendLayout();
-        _scrollPanel.Controls.Clear();
-        _nextTop = 10;
-        foreach (var m in _stored) PlaceBubble(m, false);
+        _nextTop = 12;
+        foreach (var (_, bubble) in _rows)
+        {
+            bubble.Relayout(_scrollPanel.ClientSize.Width);
+            bubble.Top  = _nextTop;
+            _nextTop   += bubble.Height;
+        }
+        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 12);
         _scrollPanel.ResumeLayout();
         ScrollToBottom();
     }
@@ -188,23 +228,21 @@ public sealed class ChatPanel : Panel, IDisposable
     private void ScrollToBottom() =>
         _scrollPanel.AutoScrollPosition = new Point(0, _nextTop);
 
-    // ── Network ──────────────────────────────────────────────────
+    // ── Network ───────────────────────────────────────────────────────
 
     private async Task LoadAndConnectAsync()
     {
         try
         {
-            var msgs = await new ApiClient(_serverUrl).GetMessagesAsync(_roomCode);
-            foreach (var m in msgs)
+            var history = await new ApiClient(_serverUrl).GetMessagesAsync(_roomCode);
+            foreach (var m in history)
             {
                 string t = DateTime.Parse(m.SentAt).ToLocalTime().ToString("HH:mm");
                 AddMessage(m.Sender, Decrypt(m.Content), t, m.Sender == _username, false);
             }
         }
-        catch (Exception ex)
-        {
-            AddSystemLine($"Could not load history: {ex.Message}");
-        }
+        catch (Exception ex) { AddSystemLine($"Could not load history: {ex.Message}"); }
+
         await ConnectWsAsync();
     }
 
@@ -219,33 +257,31 @@ public sealed class ChatPanel : Panel, IDisposable
             _stomp = new StompClient(wsUrl, _roomCode, _username,
                 onMessage: (sender, content) => SafeInvoke(() =>
                 {
-                    string t = DateTime.Now.ToString("HH:mm");
-                    AddMessage(sender, Decrypt(content), t, sender == _username, true);
+                    string plain = Decrypt(content);
+                    string t     = DateTime.Now.ToString("HH:mm");
+                    AddMessage(sender, plain, t, sender == _username, true);
+
+                    if (sender != _username)
+                        ToastService.NotifyIfUnfocused(sender, plain);
                 }),
                 onUserEvent: evt => SafeInvoke(() => AddSystemLine(evt)));
+
             await _stomp.ConnectAsync();
         }
-        catch (Exception ex)
-        {
-            AddSystemLine($"WebSocket error: {ex.Message}");
-        }
+        catch (Exception ex) { AddSystemLine($"WebSocket error: {ex.Message}"); }
     }
 
     private async Task SendAsync()
     {
-        string text = _inputField.Text.Trim();
-        // Clear placeholder
-        if (text == (string?)_inputField.Tag || string.IsNullOrEmpty(text) || _stomp == null) return;
+        string text = _inputField.Text;
+        if (text == "Type a message…" || string.IsNullOrWhiteSpace(text) || _stomp == null) return;
         _inputField.Text = "";
         try
         {
-            string payload = _crypto != null ? _crypto.Encrypt(text) : text;
+            string payload = _crypto != null ? _crypto.Encrypt(text.Trim()) : text.Trim();
             await _stomp.SendChatMessageAsync(payload);
         }
-        catch (Exception ex)
-        {
-            AddSystemLine($"Send failed: {ex.Message}");
-        }
+        catch (Exception ex) { AddSystemLine($"Send failed: {ex.Message}"); }
     }
 
     private async Task LeaveAsync()
@@ -259,7 +295,7 @@ public sealed class ChatPanel : Panel, IDisposable
         _onLeave();
     }
 
-    // ── Helpers ──────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────
 
     private string Decrypt(string content)
     {
@@ -271,18 +307,18 @@ public sealed class ChatPanel : Panel, IDisposable
     {
         var lbl = new Label
         {
-            Text      = line,
+            Text      = "— " + line + " —",
             ForeColor = Theme.SubText,
             Font      = Theme.SubFont,
             AutoSize  = false,
-            Height    = 20,
+            Height    = 22,
             Width     = _scrollPanel.ClientSize.Width,
             Top       = _nextTop,
             Left      = 0,
             TextAlign = ContentAlignment.MiddleCenter
         };
-        _nextTop += 24;
-        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 10);
+        _nextTop += 26;
+        _scrollPanel.AutoScrollMinSize = new Size(0, _nextTop + 12);
         _scrollPanel.Controls.Add(lbl);
         ScrollToBottom();
     }
@@ -294,13 +330,14 @@ public sealed class ChatPanel : Panel, IDisposable
         else action();
     }
 
-    private static System.Drawing.Drawing2D.GraphicsPath RoundRect(Rectangle r, int radius)
+    private static GraphicsPath Pill(Rectangle r)
     {
-        var p = new System.Drawing.Drawing2D.GraphicsPath();
-        p.AddArc(r.X,               r.Y,               radius * 2, radius * 2, 180, 90);
-        p.AddArc(r.Right - radius * 2, r.Y,             radius * 2, radius * 2, 270, 90);
-        p.AddArc(r.Right - radius * 2, r.Bottom - radius * 2, radius * 2, radius * 2, 0, 90);
-        p.AddArc(r.X,               r.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
+        int rad = r.Height;
+        var p   = new GraphicsPath();
+        p.AddArc(r.X,          r.Y,           rad, rad, 180, 90);
+        p.AddArc(r.Right - rad, r.Y,           rad, rad, 270, 90);
+        p.AddArc(r.Right - rad, r.Bottom - rad, rad, rad,   0, 90);
+        p.AddArc(r.X,          r.Bottom - rad, rad, rad,  90, 90);
         p.CloseFigure();
         return p;
     }
@@ -312,7 +349,6 @@ public sealed class ChatPanel : Panel, IDisposable
     }
 }
 
-// Exposes the protected DoubleBuffered property
 file sealed class DoubleBufferedPanel : Panel
 {
     public DoubleBufferedPanel() => DoubleBuffered = true;
